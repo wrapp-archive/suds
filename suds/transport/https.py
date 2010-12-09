@@ -22,6 +22,7 @@ import urllib2 as u2
 from suds.transport import *
 from suds.transport.http import HttpTransport
 from logging import getLogger
+import httplib
 
 log = getLogger(__name__)
 
@@ -96,3 +97,26 @@ class WindowsHttpAuthenticated(HttpAuthenticated):
         handlers = HttpTransport.u2handlers(self)
         handlers.append(HTTPNtlmAuthHandler.HTTPNtlmAuthHandler(self.pm))
         return handlers
+
+class HttpsClientCertAuthenticated(HttpTransport):
+    def __init__(self, key, cert, **kwargs):
+        HttpTransport.__init__(self, **kwargs)
+        self.urlopener = u2.build_opener(HTTPSClientAuthHandler(key, cert))
+
+#HTTPS Client Auth solution for urllib2, inspired by
+# http://bugs.python.org/issue3466
+# and improved by David Norton of Three Pillar Software. In this
+# implementation, we use properties passed in rather than static module
+# fields.
+class HTTPSClientAuthHandler(u2.HTTPSHandler):
+    def __init__(self, key, cert):
+        u2.HTTPSHandler.__init__(self)
+        self.key = key
+        self.cert = cert
+    def https_open(self, req):
+        #Rather than pass in a reference to a connection class, we pass in
+        # a reference to a function which, for all intents and purposes,
+        # will behave as a constructor
+        return self.do_open(self.getConnection, req)
+    def getConnection(self, host, timeout=300):
+        return httplib.HTTPSConnection(host, key_file=self.key, cert_file=self.cert)

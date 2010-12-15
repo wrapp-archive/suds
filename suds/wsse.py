@@ -237,7 +237,7 @@ class Signature(Object):
             element_to_sign = element_to_sign_func(header, body)
             element_content = element_to_sign.clone(None).canonical()
             #print element_content
-            priv_key = EVP.load_key('clientkey-nopass.pem')
+            priv_key = EVP.load_key(self.key)
             priv_key.sign_init()
             priv_key.sign_update(element_content.encode("utf-8"))
             signed_digest = priv_key.sign_final()
@@ -294,7 +294,8 @@ class Signature(Object):
         root.append(key_info)
         return root
 
-    def __init__(self):
+    def __init__(self, key):
         Object.__init__(self)
         self.digest_elements = None
         self.signature_elements = None
+        self.key = key

@@ -791,6 +791,26 @@ class Element:
         result = ''.join(result)
         return result
 
+    def canonical(self):
+        """
+        Get a string representation of this XML fragment.
+        @return: A I{plain} string.
+        @rtype: basestring
+        """
+        result = []
+        result.append('<%s' % self.qname())
+        result.append(self.nsdeclarations())
+        for a in [unicode(a) for a in sorted(self.attributes, lambda a_key: self.resolvePrefix(a_key)[1] + ':' + a_key.name)]:
+            result.append(' %s' % a)
+        result.append('>')
+        if self.hasText():
+            result.append(self.text.escape())
+        for c in self.children:
+            result.append(c.canonical())
+        result.append('</%s>' % self.qname())
+        result = ''.join(result)
+        return result
+
     def nsdeclarations(self):
         """
         Get a string representation for all namespace declarations
@@ -808,7 +828,7 @@ class Element:
             if self.expns is not None:
                 d = ' xmlns="%s"' % self.expns
                 s.append(d)
-        for item in self.nsprefixes.items():
+        for item in sorted(self.nsprefixes.items()):
             (p,u) = item
             if self.parent is not None:
                 ns = self.parent.resolvePrefix(p)

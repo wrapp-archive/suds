@@ -278,11 +278,16 @@ class Signature(Object):
         sec_token_ref = Element("SecurityTokenReference", ns=wssens)
         x509_data = Element("X509Data", ns=dsns)
         issuer_serial = Element("X509IssuerSerial", ns=dsns)
-        # TODO pull this info from the private key
+        x509_cert = X509.load_cert(self.cert, X509.FORMAT_PEM)
+        x509_cert_issuer = x509_cert.get_issuer()
         issuer_name = Element("X509IssuerName", ns=dsns)
-        issuer_name.setText("CN=fakeca.com,O=Fake CA,L=Tucson,ST=Arizona,C=US")
+        issuer_name.setText("CN=%s,O=%s,L=%s,ST=%s,C=%s" % (x509_cert_issuer.CN,
+            x509_cert_issuer.O,
+            x509_cert_issuer.L,
+            x509_cert_issuer.ST,
+            x509_cert_issuer.C))
         serial_number = Element("X509SerialNumber", ns=dsns)
-        serial_number.setText("2")
+        serial_number.setText(x509_cert.get_serial_number())
         issuer_serial.append(issuer_name)
         issuer_serial.append(serial_number)
         x509_data.append(issuer_serial)
@@ -294,8 +299,9 @@ class Signature(Object):
         root.append(key_info)
         return root
 
-    def __init__(self, key):
+    def __init__(self, key, cert):
         Object.__init__(self)
         self.digest_elements = None
         self.signature_elements = None
         self.key = key
+        self.cert = cert

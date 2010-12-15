@@ -224,19 +224,14 @@ class Signature(Object):
     def signMessage(self, header, body):
         for (element_to_store_digest, element_to_digest_func) in self.digest_elements:
             element_to_digest = element_to_digest_func(header, body)
-            #print element_to_digest.nsprefixes
-            #print element_to_digest.parent.nsprefixes
             detached_element = element_to_digest.clone(None)
             element_content = detached_element.canonical()
-            #print element_to_digest.clone(None).nsprefixes
-            #print element_content
             hash = sha1()
             hash.update(element_content)
             element_to_store_digest.setText(b64encode(hash.digest()))
         for (element_to_store_signature, element_to_sign_func) in self.signature_elements:
             element_to_sign = element_to_sign_func(header, body)
             element_content = element_to_sign.clone(None).canonical()
-            #print element_content
             priv_key = EVP.load_key(self.key)
             priv_key.sign_init()
             priv_key.sign_update(element_content.encode("utf-8"))

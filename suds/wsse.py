@@ -24,6 +24,9 @@ from suds.sudsobject import Object
 from suds.sax.element import Element
 from suds.sax.date import UTC
 from datetime import datetime, timedelta
+from hashlib import sha1
+from base64 import b64encode
+from M2Crypto import *
 
 try:
     from hashlib import md5
@@ -68,6 +71,10 @@ class Security(Object):
         self.references = []
         self.keys = []
         
+    def signMessage(self, header, body):
+        for s in self.signatures:
+            s.signMessage(header, body)
+        
     def xml(self):
         """
         Get xml representation of the object.
@@ -78,6 +85,8 @@ class Security(Object):
         root.set('mustUnderstand', str(self.mustUnderstand).lower())
         for t in self.tokens:
             root.append(t.xml())
+        for s in self.signatures:
+		    root.append(s.xml())
         return root
 
 
@@ -210,3 +219,82 @@ class Timestamp(Token):
         root.append(created)
         root.append(expires)
         return root
+
+class Signature(Object):
+    def signMessage(self, header, body):
+        for (element_to_store_digest, element_to_digest_func) in self.digest_elements:
+            element_to_digest = element_to_digest_func(header, body)
+            #print element_to_digest.nsprefixes
+            #print element_to_digest.parent.nsprefixes
+            detached_element = element_to_digest.clone(None)
+            element_content = detached_element.canonical()
+            #print element_to_digest.clone(None).nsprefixes
+            #print element_content
+            hash = sha1()
+            hash.update(element_content)
+            element_to_store_digest.setText(b64encode(hash.digest()))
+        for (element_to_store_signature, element_to_sign_func) in self.signature_elements:
+            element_to_sign = element_to_sign_func(header, body)
+            element_content = element_to_sign.clone(None).canonical()
+            #print element_content
+            priv_key = EVP.load_key('clientkey-nopass.pem')
+            priv_key.sign_init()
+            priv_key.sign_update(element_content.encode("utf-8"))
+            signed_digest = priv_key.sign_final()
+            element_to_store_signature.setText(b64encode(signed_digest))
+    
+    def xml(self):
+        self.digest_elements = []
+        self.signature_elements = []
+        
+        root = Element("Signature", ns=dsns)
+
+        signed_info = Element("SignedInfo", ns=dsns)
+        canon_method = Element("CanonicalizationMethod", ns=dsns)
+        canon_method.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
+        sig_method = Element("SignatureMethod", ns=dsns)
+        sig_method.set("Algorithm", "http://www.w3.org/2000/09/xmldsig#rsa-sha1")
+        reference = Element("Reference", ns=dsns)
+        reference.set("URI", "#body")
+        transforms = Element("Transforms", ns=dsns)
+        transform = Element("Transform", ns=dsns)
+        transform.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
+        transforms.append(transform)
+        digest_method = Element("DigestMethod", ns=dsns)
+        digest_method.set("Algorithm", "http://www.w3.org/2000/09/xmldsig#sha1")
+        digest_value = Element("DigestValue", ns=dsns)
+        self.digest_elements.append((digest_value, lambda h, b: b))
+        reference.append(transforms)
+        reference.append(digest_method)
+        reference.append(digest_value)
+        signed_info.append(canon_method)
+        signed_info.append(sig_method)
+        signed_info.append(reference)        
+        
+        sig_value = Element("SignatureValue", ns=dsns)
+        self.signature_elements.append((sig_value, lambda h, b: signed_info))
+
+        key_info = Element("KeyInfo", ns=dsns)
+        sec_token_ref = Element("SecurityTokenReference", ns=wssens)
+        x509_data = Element("X509Data", ns=dsns)
+        issuer_serial = Element("X509IssuerSerial", ns=dsns)
+        # TODO pull this info from the private key
+        issuer_name = Element("X509IssuerName", ns=dsns)
+        issuer_name.setText("CN=fakeca.com,O=Fake CA,L=Tucson,ST=Arizona,C=US")
+        serial_number = Element("X509SerialNumber", ns=dsns)
+        serial_number.setText("2")
+        issuer_serial.append(issuer_name)
+        issuer_serial.append(serial_number)
+        x509_data.append(issuer_serial)
+        sec_token_ref.append(x509_data)
+        key_info.append(sec_token_ref)
+        
+        root.append(signed_info)
+        root.append(sig_value)
+        root.append(key_info)
+        return root
+
+    def __init__(self):
+        Object.__init__(self)
+        self.digest_elements = None
+        self.signature_elements = None

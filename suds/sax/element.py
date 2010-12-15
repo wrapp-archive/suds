@@ -156,6 +156,13 @@ class Element:
             return self.parent.getRoot()
         
     def clone(self, parent=None):
+        (new_root, prefixes_to_clone) = self.clone_node(parent)
+        for item in prefixes_to_clone:
+            prefix = self.resolvePrefix(item)
+            new_root.addPrefix(prefix[0], prefix[1])
+        return new_root
+    
+    def clone_node(self, parent=None):
         """
         Deep clone of this element and children.
         @param parent: An optional parent for the copied fragment.
@@ -164,13 +171,22 @@ class Element:
         @rtype: I{Element}
         """
         root = Element(self.qname(), parent, self.namespace())
+        prefixes_found = set()
+        if self.prefix:
+            prefixes_found.add(self.prefix)
+        root.setText(self.getText())
         for a in self.attributes:
             root.append(a.clone(self))
+            if a.prefix:
+                prefixes_found.add(a.prefix)
         for c in self.children:
-            root.append(c.clone(self))
+            (new_child, new_prefixes) = c.clone_node(self)
+            root.append(new_child)
+            prefixes_found.update(new_prefixes)
         for item in self.nsprefixes.items():
             root.addPrefix(item[0], item[1])
-        return root
+            prefixes_found.remove(item[0])
+        return (root, prefixes_found)
     
     def detach(self):
         """

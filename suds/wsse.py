@@ -48,6 +48,28 @@ wsencns = \
     ('wsenc',
      'http://www.w3.org/2001/04/xmlenc#')
 
+def build_key_info(cert):
+    key_info = Element("KeyInfo", ns=dsns)
+    sec_token_ref = Element("SecurityTokenReference", ns=wssens)
+    x509_data = Element("X509Data", ns=dsns)
+    issuer_serial = Element("X509IssuerSerial", ns=dsns)
+    x509_cert = X509.load_cert(cert, X509.FORMAT_PEM)
+    x509_cert_issuer = x509_cert.get_issuer()
+    issuer_name = Element("X509IssuerName", ns=dsns)
+    issuer_name.setText("CN=%s,O=%s,L=%s,ST=%s,C=%s" % (x509_cert_issuer.CN,
+        x509_cert_issuer.O,
+        x509_cert_issuer.L,
+        x509_cert_issuer.ST,
+        x509_cert_issuer.C))
+    serial_number = Element("X509SerialNumber", ns=dsns)
+    serial_number.setText(x509_cert.get_serial_number())
+    issuer_serial.append(issuer_name)
+    issuer_serial.append(serial_number)
+    x509_data.append(issuer_serial)
+    sec_token_ref.append(x509_data)
+    key_info.append(sec_token_ref)
+    
+    return key_info
 
 class Security(Object):
     """
@@ -276,25 +298,7 @@ class Signature(Object):
         sig_value = Element("SignatureValue", ns=dsns)
         self.signature_elements.append((sig_value, lambda env: signed_info))
 
-        key_info = Element("KeyInfo", ns=dsns)
-        sec_token_ref = Element("SecurityTokenReference", ns=wssens)
-        x509_data = Element("X509Data", ns=dsns)
-        issuer_serial = Element("X509IssuerSerial", ns=dsns)
-        x509_cert = X509.load_cert(self.cert, X509.FORMAT_PEM)
-        x509_cert_issuer = x509_cert.get_issuer()
-        issuer_name = Element("X509IssuerName", ns=dsns)
-        issuer_name.setText("CN=%s,O=%s,L=%s,ST=%s,C=%s" % (x509_cert_issuer.CN,
-            x509_cert_issuer.O,
-            x509_cert_issuer.L,
-            x509_cert_issuer.ST,
-            x509_cert_issuer.C))
-        serial_number = Element("X509SerialNumber", ns=dsns)
-        serial_number.setText(x509_cert.get_serial_number())
-        issuer_serial.append(issuer_name)
-        issuer_serial.append(serial_number)
-        x509_data.append(issuer_serial)
-        sec_token_ref.append(x509_data)
-        key_info.append(sec_token_ref)
+        key_info = build_key_info(self.cert)
         
         root.append(signed_info)
         root.append(sig_value)

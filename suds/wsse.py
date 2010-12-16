@@ -58,11 +58,14 @@ def build_key_info(cert):
     x509_cert = X509.load_cert(cert, X509.FORMAT_PEM)
     x509_cert_issuer = x509_cert.get_issuer()
     issuer_name = Element("X509IssuerName", ns=dsns)
-    issuer_name.setText("CN=%s,O=%s,L=%s,ST=%s,C=%s" % (x509_cert_issuer.CN,
-        x509_cert_issuer.O,
-        x509_cert_issuer.L,
-        x509_cert_issuer.ST,
-        x509_cert_issuer.C))
+    issuer_name_list = []
+    x509_cert_issuer.CN and issuer_name_list.append("CN=%s" % x509_cert_issuer.CN)
+    x509_cert_issuer.OU and issuer_name_list.append("OU=%s" % x509_cert_issuer.OU)
+    x509_cert_issuer.O and issuer_name_list.append("O=%s" % x509_cert_issuer.O)
+    x509_cert_issuer.L and issuer_name_list.append("L=%s" % x509_cert_issuer.L)
+    x509_cert_issuer.ST and issuer_name_list.append("ST=%s" % x509_cert_issuer.ST)
+    x509_cert_issuer.C and issuer_name_list.append("C=%s" % x509_cert_issuer.C)
+    issuer_name.setText(",".join(issuer_name_list))
     serial_number = Element("X509SerialNumber", ns=dsns)
     serial_number.setText(x509_cert.get_serial_number())
     issuer_serial.append(issuer_name)

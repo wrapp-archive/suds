@@ -27,6 +27,8 @@ from datetime import datetime, timedelta
 from hashlib import sha1
 from base64 import b64encode
 from M2Crypto import *
+from struct import pack
+import random
 
 try:
     from hashlib import md5
@@ -107,6 +109,8 @@ class Security(Object):
         root.set('mustUnderstand', str(self.mustUnderstand).lower())
         for t in self.tokens:
             root.append(t.xml())
+        for k in self.keys:
+            root.append(k.xml())
         for s in self.signatures:
 		    root.append(s.xml())
         return root
@@ -313,3 +317,33 @@ class Signature(Object):
         self.cert = cert
         self.signed_parts = []
 
+class Key(Object):
+    def xml(self):
+        root = Element("EncryptedKey", ns=wsencns)
+        enc_method = Element("EncryptionMethod", ns=wsencns)
+        enc_method.set("Algorithm", "http://www.w3.org/2001/04/xmlenc#rsa-1_5")
+        key_info = build_key_info(self.cert)
+        
+        cipher_data = Element("CipherData", ns=wsencns)
+        cipher_value = Element("CipherValue", ns=wsencns)
+        self.sym_key = pack("=LLLL", self.random.getrandbits(32),
+            self.random.getrandbits(32),
+            self.random.getrandbits(32),
+            self.random.getrandbits(32))
+        pub_key = X509.load_cert(self.cert).get_pubkey().get_rsa()
+        enc_sym_key = pub_key.public_encrypt(self.sym_key, RSA.pkcs1_padding)
+        cipher_value.setText(b64encode(enc_sym_key))
+        cipher_data.append(cipher_value)
+        
+        reference_list = Element("ReferenceList", ns=wsencns)
+        
+        root.append(enc_method)
+        root.append(key_info)
+        root.append(cipher_data)
+        root.append(reference_list)
+        return root
+        
+    def __init__(self, cert):
+        Object.__init__(self)
+        self.cert = cert
+        self.random = random.SystemRandom()

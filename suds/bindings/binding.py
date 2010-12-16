@@ -124,7 +124,8 @@ class Binding:
             #body.normalizePrefixes()
             wsse = self.options().wsse
             if wsse is not None:
-                wsse.signMessage(header, body)
+                env.addPrefix('wsu', 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
+                wsse.signMessage(env)
             env.promotePrefixes()
         else:
             env.refitPrefixes()
@@ -415,9 +416,6 @@ class Binding:
         @rtype: L{Element}
         """
         body = Element('Body', ns=envns)
-        if self.options().wsse is not None:
-            body.addPrefix('wsu', 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
-            body.set('wsu:Id', 'body')
         body.append(content)
         return body
     

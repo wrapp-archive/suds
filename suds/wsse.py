@@ -71,9 +71,9 @@ class Security(Object):
         self.references = []
         self.keys = []
         
-    def signMessage(self, header, body):
+    def signMessage(self, env):
         for s in self.signatures:
-            s.signMessage(header, body)
+            s.signMessage(env)
         
     def xml(self):
         """
@@ -221,16 +221,19 @@ class Timestamp(Token):
         return root
 
 class Signature(Object):
-    def signMessage(self, header, body):
+    def signMessage(self, env):
+        id_index = 1
         for (element_to_store_digest, element_to_digest_func) in self.digest_elements:
-            element_to_digest = element_to_digest_func(header, body)
+            element_to_digest = element_to_digest_func(env)
+            element_to_digest.set('wsu:Id', 'id-' + str(id_index))
+            id_index = id_index + 1
             detached_element = element_to_digest.clone(None)
             element_content = detached_element.canonical()
             hash = sha1()
             hash.update(element_content)
             element_to_store_digest.setText(b64encode(hash.digest()))
         for (element_to_store_signature, element_to_sign_func) in self.signature_elements:
-            element_to_sign = element_to_sign_func(header, body)
+            element_to_sign = element_to_sign_func(env)
             element_content = element_to_sign.clone(None).canonical()
             priv_key = EVP.load_key(self.key)
             priv_key.sign_init()
@@ -249,25 +252,29 @@ class Signature(Object):
         canon_method.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
         sig_method = Element("SignatureMethod", ns=dsns)
         sig_method.set("Algorithm", "http://www.w3.org/2000/09/xmldsig#rsa-sha1")
-        reference = Element("Reference", ns=dsns)
-        reference.set("URI", "#body")
-        transforms = Element("Transforms", ns=dsns)
-        transform = Element("Transform", ns=dsns)
-        transform.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
-        transforms.append(transform)
-        digest_method = Element("DigestMethod", ns=dsns)
-        digest_method.set("Algorithm", "http://www.w3.org/2000/09/xmldsig#sha1")
-        digest_value = Element("DigestValue", ns=dsns)
-        self.digest_elements.append((digest_value, lambda h, b: b))
-        reference.append(transforms)
-        reference.append(digest_method)
-        reference.append(digest_value)
         signed_info.append(canon_method)
         signed_info.append(sig_method)
-        signed_info.append(reference)        
+
+        id_index = 1
+        for signed_part_func in self.signed_parts:
+            reference = Element("Reference", ns=dsns)
+            reference.set("URI", "#id-" + str(id_index))
+            id_index = id_index + 1
+            transforms = Element("Transforms", ns=dsns)
+            transform = Element("Transform", ns=dsns)
+            transform.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
+            transforms.append(transform)
+            digest_method = Element("DigestMethod", ns=dsns)
+            digest_method.set("Algorithm", "http://www.w3.org/2000/09/xmldsig#sha1")
+            digest_value = Element("DigestValue", ns=dsns)
+            self.digest_elements.append((digest_value, signed_part_func))
+            reference.append(transforms)
+            reference.append(digest_method)
+            reference.append(digest_value)
+            signed_info.append(reference)        
         
         sig_value = Element("SignatureValue", ns=dsns)
-        self.signature_elements.append((sig_value, lambda h, b: signed_info))
+        self.signature_elements.append((sig_value, lambda env: signed_info))
 
         key_info = Element("KeyInfo", ns=dsns)
         sec_token_ref = Element("SecurityTokenReference", ns=wssens)
@@ -300,3 +307,5 @@ class Signature(Object):
         self.signature_elements = None
         self.key = key
         self.cert = cert
+        self.signed_parts = []
+

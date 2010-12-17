@@ -22,10 +22,11 @@ from logging import getLogger
 from suds import *
 from suds.sudsobject import Object
 from suds.sax.element import Element
+from suds.sax.parser import Parser
 from suds.sax.date import UTC
 from datetime import datetime, timedelta
 from hashlib import sha1
-from base64 import b64encode
+from base64 import b64encode,b64decode
 from M2Crypto import *
 from struct import pack
 import random
@@ -106,6 +107,36 @@ class Security(Object):
         for k in self.keys:
             k.encryptMessage(env)
 
+    def decryptMessage(self, env):
+        enc_data_blocks = dict()
+        
+        def collectEncryptedDataBlock(elt):
+            if not elt.match("EncryptedData", ns=wsencns):
+                return
+            
+            enc_data_blocks[elt.get("Id")] = elt
+            pass
+
+        env.walk(collectEncryptedDataBlock)
+        for key_elt in env.getChild("Header").getChild("Security").getChildren("EncryptedKey", ns=wsencns):
+            enc_key = b64decode(key_elt.getChild("CipherData").getChild("CipherValue").getText())
+            priv_key = RSA.load_key(self.signatures[0].key)
+            sym_key = priv_key.private_decrypt(enc_key, RSA.pkcs1_oaep_padding)
+            for data_block_id in [c.get("URI") for c in key_elt.getChild("ReferenceList").getChildren("DataReference")]:
+                if not data_block_id[0] == "#":
+                    raise Exception, "Cannot handle non-local data references"
+                data_block = enc_data_blocks[data_block_id[1:]]
+                enc_content = b64decode(data_block.getChild("CipherData").getChild("CipherValue").getText())
+                iv = enc_content[:16]
+                enc_content = enc_content[16:]
+                cipher = EVP.Cipher(alg='aes_128_cbc', key=sym_key, iv=iv, op=0, padding=0)
+                content = cipher.update(enc_content)
+                content = content + cipher.final()
+                content = content[:-ord(content[-1])]
+                sax = Parser()
+                decrypted_element = sax.parse(string=content)
+                data_block.parent.replaceChild(data_block, decrypted_element.getChildren())
+    
     def xml(self):
         """
         Get xml representation of the object.

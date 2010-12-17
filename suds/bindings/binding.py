@@ -151,6 +151,8 @@ class Binding:
         plugins = PluginContainer(self.options().plugins)
         plugins.message.parsed(reply=replyroot)
         soapenv = replyroot.getChild('Envelope')
+        if self.options().wsse:
+            self.options().wsse.decryptMessage(soapenv)
         soapenv.promotePrefixes()
         soapbody = soapenv.getChild('Body')
         self.detect_fault(soapbody)

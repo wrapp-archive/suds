@@ -126,6 +126,7 @@ class Binding:
             if wsse is not None:
                 env.addPrefix('wsu', 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
                 wsse.signMessage(env)
+                wsse.encryptMessage(env)
             env.promotePrefixes()
         else:
             env.refitPrefixes()

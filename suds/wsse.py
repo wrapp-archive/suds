@@ -101,7 +101,11 @@ class Security(Object):
     def signMessage(self, env):
         for s in self.signatures:
             s.signMessage(env)
-        
+
+    def encryptMessage(self, env):
+        for k in self.keys:
+            k.encryptMessage(env)
+
     def xml(self):
         """
         Get xml representation of the object.
@@ -321,8 +325,52 @@ class Signature(Object):
         self.signed_parts = []
 
 class Key(Object):
+    def encryptMessage(self, env):
+        id_index = 1
+        for element_to_encrypt_func in self.encrypted_parts:
+            element_to_encrypt = element_to_encrypt_func(env)
+            id = 'EncDataId-' + str(id_index)
+            id_index = id_index + 1
+            detached_element = element_to_encrypt.clone(None)
+            element_content = detached_element.canonical()
+            element_content = element_content[element_content.index(">") + 1:element_content.rindex("<")]
+            enc_data = Element("EncryptedData", ns=wsencns)
+            enc_data.set("Id", id)
+            enc_data.set("Type", "http://www.w3.org/2001/04/xmlenc#Content")
+            
+            enc_method = Element("EncryptionMethod", ns=wsencns)
+            enc_method.set("Algorithm", "http://www.w3.org/2001/04/xmlenc#aes128-cbc")
+            
+            key_info = Element("KeyInfo", ns=dsns)
+            sec_token_ref = Element("SecurityTokenReference", ns=wssens)
+            wsse_reference = Element("Reference", ns=wssens)
+            wsse_reference.set("URI", "#EncKeyId-1")
+            sec_token_ref.append(wsse_reference)
+            key_info.append(sec_token_ref)
+            
+            cipher_data = Element("CipherData", ns=wsencns)
+            cipher_value = Element("CipherValue", ns=wsencns)
+            cipher = EVP.Cipher(alg='aes_128_cbc', key=self.sym_key, iv=self.iv, op=1, padding=0)
+            pad_bytes = 16 - len(element_content) % 16
+            element_content = element_content + ' ' * (pad_bytes - 1) + chr(pad_bytes)
+            enc_content = cipher.update(element_content.encode("utf-8"))
+            enc_content = enc_content + cipher.final()
+            enc_content = self.iv + enc_content
+            cipher_value.setText(b64encode(enc_content))
+            cipher_data.append(cipher_value)
+
+            enc_data.append(enc_method)
+            enc_data.append(key_info)
+            enc_data.append(cipher_data)
+            
+            for child in element_to_encrypt.children:
+                element_to_encrypt.remove(child)
+            element_to_encrypt.append(enc_data)
+
     def xml(self):
         root = Element("EncryptedKey", ns=wsencns)
+        # TODO change to support multiple encryption keys
+        root.set("Id", "EncKeyId-1")
         enc_method = Element("EncryptionMethod", ns=wsencns)
         enc_method.set("Algorithm", "http://www.w3.org/2001/04/xmlenc#rsa-1_5")
         key_info = build_key_info(self.cert)
@@ -333,13 +381,23 @@ class Key(Object):
             self.random.getrandbits(32),
             self.random.getrandbits(32),
             self.random.getrandbits(32))
+        self.iv = pack("=LLLL", self.random.getrandbits(32),
+            self.random.getrandbits(32),
+            self.random.getrandbits(32),
+            self.random.getrandbits(32))
         pub_key = X509.load_cert(self.cert).get_pubkey().get_rsa()
         enc_sym_key = pub_key.public_encrypt(self.sym_key, RSA.pkcs1_padding)
         cipher_value.setText(b64encode(enc_sym_key))
         cipher_data.append(cipher_value)
         
         reference_list = Element("ReferenceList", ns=wsencns)
-        
+        id_index = 1
+        for part in self.encrypted_parts:
+            reference = Element("DataReference", ns=wsencns)
+            reference.set("URI", '#EncDataId-' + str(id_index))
+            id_index = id_index + 1
+            reference_list.append(reference)
+
         root.append(enc_method)
         root.append(key_info)
         root.append(cipher_data)
@@ -350,3 +408,4 @@ class Key(Object):
         Object.__init__(self)
         self.cert = cert
         self.random = random.SystemRandom()
+        self.encrypted_parts = []

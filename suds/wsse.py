@@ -399,8 +399,7 @@ class Key(Object):
             element_to_encrypt = element_to_encrypt_func(env)
             id = 'EncDataId-' + str(id_index)
             id_index = id_index + 1
-            detached_element = element_to_encrypt.clone(None)
-            element_content = detached_element.canonical()
+            element_content = element_to_encrypt.canonical()
             element_content = element_content[element_content.index(">") + 1:element_content.rindex("<")]
             enc_data = Element("EncryptedData", ns=wsencns)
             enc_data.set("Id", id)

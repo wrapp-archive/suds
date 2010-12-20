@@ -51,6 +51,37 @@ wsencns = \
     ('wsenc',
      'http://www.w3.org/2001/04/xmlenc#')
 
+BLOCK_ENCRYPTION_AES128_CBC = 'http://www.w3.org/2001/04/xmlenc#aes128-cbc'
+BLOCK_ENCRYPTION_AES192_CBC = 'http://www.w3.org/2001/04/xmlenc#aes192-cbc'
+BLOCK_ENCRYPTION_AES256_CBC = 'http://www.w3.org/2001/04/xmlenc#aes256-cbc'
+BLOCK_ENCRYPTION_3DES_CBC = 'http://www.w3.org/2001/04/xmlenc#tripledes-cbc'
+
+blockEncryptionProperties = dict()
+blockEncryptionProperties[BLOCK_ENCRYPTION_AES128_CBC] = {
+    'uri': BLOCK_ENCRYPTION_AES128_CBC,
+    'openssl_cipher': 'aes_128_cbc',
+    'key_size': 16,
+    'block_size': 16,
+    'iv_size': 16}
+blockEncryptionProperties[BLOCK_ENCRYPTION_AES192_CBC] = {
+    'uri': BLOCK_ENCRYPTION_AES192_CBC,
+    'openssl_cipher': 'aes_192_cbc',
+    'key_size': 24,
+    'block_size': 16,
+    'iv_size': 16}
+blockEncryptionProperties[BLOCK_ENCRYPTION_AES256_CBC] = {
+    'uri': BLOCK_ENCRYPTION_AES256_CBC,
+    'openssl_cipher': 'aes_256_cbc',
+    'key_size': 32,
+    'block_size': 16,
+    'iv_size': 16}
+blockEncryptionProperties[BLOCK_ENCRYPTION_3DES_CBC] =  {
+    'uri': BLOCK_ENCRYPTION_3DES_CBC,
+    'openssl_cipher': 'des_ede_cbc',
+    'key_size': 24,
+    'block_size': 8,
+    'iv_size': 8}
+
 def build_key_info(cert):
     key_info = Element("KeyInfo", ns=dsns)
     sec_token_ref = Element("SecurityTokenReference", ns=wssens)
@@ -125,10 +156,11 @@ class Security(Object):
                 if not data_block_id[0] == "#":
                     raise Exception, "Cannot handle non-local data references"
                 data_block = enc_data_blocks[data_block_id[1:]]
+                block_encryption_props = blockEncryptionProperties[data_block.getChild("EncryptionMethod").get("Algorithm")]
                 enc_content = b64decode(data_block.getChild("CipherData").getChild("CipherValue").getText())
-                iv = enc_content[:16]
-                enc_content = enc_content[16:]
-                cipher = EVP.Cipher(alg='aes_128_cbc', key=sym_key, iv=iv, op=0, padding=0)
+                iv = enc_content[:block_encryption_props['iv_size']]
+                enc_content = enc_content[block_encryption_props['iv_size']:]
+                cipher = EVP.Cipher(alg=block_encryption_props['openssl_cipher'], key=sym_key, iv=iv, op=0, padding=0)
                 content = cipher.update(enc_content)
                 content = content + cipher.final()
                 content = content[:-ord(content[-1])]
@@ -405,8 +437,9 @@ class Key(Object):
             enc_data.set("Id", id)
             enc_data.set("Type", "http://www.w3.org/2001/04/xmlenc#Content")
             
+            block_encryption_props = blockEncryptionProperties[self.blockEncryption]
             enc_method = Element("EncryptionMethod", ns=wsencns)
-            enc_method.set("Algorithm", "http://www.w3.org/2001/04/xmlenc#aes128-cbc")
+            enc_method.set("Algorithm", block_encryption_props['uri'])
             
             key_info = Element("KeyInfo", ns=dsns)
             sec_token_ref = Element("SecurityTokenReference", ns=wssens)
@@ -417,8 +450,8 @@ class Key(Object):
             
             cipher_data = Element("CipherData", ns=wsencns)
             cipher_value = Element("CipherValue", ns=wsencns)
-            cipher = EVP.Cipher(alg='aes_128_cbc', key=self.sym_key, iv=self.iv, op=1, padding=0)
-            pad_bytes = 16 - len(element_content) % 16
+            cipher = EVP.Cipher(alg=blockEncryptionProperties[self.blockEncryption]['openssl_cipher'], key=self.sym_key, iv=self.iv, op=1, padding=0)
+            pad_bytes = block_encryption_props['block_size'] - len(element_content) % block_encryption_props['block_size']
             element_content = element_content + ' ' * (pad_bytes - 1) + chr(pad_bytes)
             enc_content = cipher.update(element_content.encode("utf-8"))
             enc_content = enc_content + cipher.final()
@@ -444,14 +477,9 @@ class Key(Object):
         
         cipher_data = Element("CipherData", ns=wsencns)
         cipher_value = Element("CipherValue", ns=wsencns)
-        self.sym_key = pack("=LLLL", self.random.getrandbits(32),
-            self.random.getrandbits(32),
-            self.random.getrandbits(32),
-            self.random.getrandbits(32))
-        self.iv = pack("=LLLL", self.random.getrandbits(32),
-            self.random.getrandbits(32),
-            self.random.getrandbits(32),
-            self.random.getrandbits(32))
+        block_encryption_props = blockEncryptionProperties[self.blockEncryption]
+        self.sym_key = bytearray([self.random.getrandbits(8) for i in range(0, block_encryption_props['key_size'])])
+        self.iv = bytearray([self.random.getrandbits(8) for i in range(0, block_encryption_props['iv_size'])])
         pub_key = X509.load_cert(self.cert).get_pubkey().get_rsa()
         enc_sym_key = pub_key.public_encrypt(self.sym_key, RSA.pkcs1_padding)
         cipher_value.setText(b64encode(enc_sym_key))
@@ -476,3 +504,4 @@ class Key(Object):
         self.cert = cert
         self.random = random.SystemRandom()
         self.encrypted_parts = []
+        self.blockEncryption = BLOCK_ENCRYPTION_AES128_CBC

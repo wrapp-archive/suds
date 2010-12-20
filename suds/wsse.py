@@ -290,14 +290,13 @@ class Signature(Object):
             element_to_digest = element_to_digest_func(env)
             element_to_digest.set('wsu:Id', 'id-' + str(id_index))
             id_index = id_index + 1
-            detached_element = element_to_digest.clone(None)
-            element_content = detached_element.canonical()
+            element_content = element_to_digest.canonical()
             hash = sha1()
             hash.update(element_content)
             element_to_store_digest.setText(b64encode(hash.digest()))
         for (element_to_store_signature, element_to_sign_func) in self.signature_elements:
             element_to_sign = element_to_sign_func(env)
-            element_content = element_to_sign.clone(None).canonical()
+            element_content = element_to_sign.canonical()
             priv_key = EVP.load_key(self.key)
             priv_key.sign_init()
             priv_key.sign_update(element_content.encode("utf-8"))

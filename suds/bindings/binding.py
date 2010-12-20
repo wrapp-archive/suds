@@ -153,6 +153,7 @@ class Binding:
         soapenv = replyroot.getChild('Envelope')
         if self.options().wsse:
             self.options().wsse.decryptMessage(soapenv)
+            self.options().wsse.verifyMessage(soapenv)
         soapenv.promotePrefixes()
         soapbody = soapenv.getChild('Body')
         self.detect_fault(soapbody)

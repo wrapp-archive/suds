@@ -136,6 +136,45 @@ class Security(Object):
                 decrypted_element = sax.parse(string=content)
                 data_block.parent.replaceChild(data_block, decrypted_element.getChildren())
     
+    def verifyMessage(self, env):
+        signed_data_blocks = dict()
+        
+        def collectSignedDataBlock(elt):
+            if not elt.get("Id", ns=wsuns):
+                return
+            
+            signed_data_blocks[elt.get("Id", ns=wsuns)] = elt
+
+        env.walk(collectSignedDataBlock)
+        for sig_elt in env.getChild("Header").getChild("Security").getChildren("Signature", ns=dsns):
+            prefix_list = []
+            if sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").get("Algorithm") == "http://www.w3.org/2001/10/xml-exc-c14n#":
+                prefix_list = sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces").get("PrefixList").split(" ")
+            signed_content = sig_elt.getChild("SignedInfo", ns=dsns).canonical(prefix_list)
+            signature = b64decode(sig_elt.getChild("SignatureValue", ns=dsns).getText())
+            pub_key = X509.load_cert(self.keys[0].cert).get_pubkey()
+            pub_key.reset_context(md='sha1')
+            pub_key.verify_init()
+            pub_key.verify_update(signed_content.encode("utf-8"))
+            if pub_key.verify_final(signature) == 0:
+                raise Exception, "signature failed verification"
+            for signed_part in sig_elt.getChild("SignedInfo", ns=dsns).getChildren("Reference", ns=dsns):
+                enclosed_digest = b64decode(signed_part.getChild("DigestValue", ns=dsns).getText())
+                signed_part_id = signed_part.get("URI")
+                    
+                if not signed_part_id[0] == "#":
+                    raise Exception, "Cannot handle non-local data references"
+                prefix_list = []
+                for transform in signed_part.getChild("Transforms", ns=dsns).getChildren("Transform", ns=dsns):
+                    if transform.get("Algorithm") == "http://www.w3.org/2001/10/xml-exc-c14n#":
+                        prefix_list = transform.getChild("InclusiveNamespaces").get("PrefixList").split(" ")
+                element_digested = signed_data_blocks[signed_part_id[1:]]
+                element_content = element_digested.canonical(prefix_list)
+                hash = sha1()
+                hash.update(element_content)
+                if hash.digest() <> enclosed_digest:
+                    raise Exception, "digest for section with id " + signed_part_id[1:] + " failed verification"
+
     def xml(self):
         """
         Get xml representation of the object.

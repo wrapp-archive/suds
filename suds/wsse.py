@@ -115,7 +115,6 @@ class Security(Object):
                 return
             
             enc_data_blocks[elt.get("Id")] = elt
-            pass
 
         env.walk(collectEncryptedDataBlock)
         for key_elt in env.getChild("Header").getChild("Security").getChildren("EncryptedKey", ns=wsencns):

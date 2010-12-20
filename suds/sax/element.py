@@ -807,7 +807,11 @@ class Element:
         result = ''.join(result)
         return result
 
-    def canonical(self):
+    def canonical(self, prefixList=[]):
+        eligiblePrefixes = reduce(lambda x,y: x | set(y.nsprefixes.keys()), self.ancestors(), set())
+        return self.canonical_(prefixList, eligiblePrefixes)
+    
+    def canonical_(self, prefixList, eligiblePrefixes):
         """
         Get a string representation of this XML fragment.
         @return: A I{plain} string.
@@ -815,18 +819,43 @@ class Element:
         """
         result = []
         result.append('<%s' % self.qname())
-        result.append(self.nsdeclarations())
+        (nsdeclarations, eligiblePrefixes) = self.canonicalnsdeclarations(prefixList, eligiblePrefixes)
+        result.append(nsdeclarations)
         for a in [unicode(a) for a in sorted(self.attributes, lambda a_key: self.resolvePrefix(a_key)[1] + ':' + a_key.name)]:
             result.append(' %s' % a)
         result.append('>')
         if self.hasText():
             result.append(self.text.escape())
         for c in self.children:
-            result.append(c.canonical())
+            result.append(c.canonical_(prefixList, set(eligiblePrefixes)))
         result.append('</%s>' % self.qname())
         result = ''.join(result)
         return result
 
+    def canonicalnsdeclarations(self, prefixList, eligiblePrefixes):
+        s = []
+        myns = (None, self.expns)
+        if self.parent is None:
+            pns = Namespace.default
+        else:
+            pns = (None, self.parent.expns)
+        if myns[1] != pns[1]:
+            if self.expns is not None:
+                d = ' xmlns="%s"' % self.expns
+                s.append(d)
+        for item in self.nsprefixes.items():
+            (p,u) = item
+            if self.parent is not None:
+                ns = self.parent.resolvePrefix(p)
+                if ns[1] == u: continue
+            eligiblePrefixes.add(p)
+        for prefix in sorted(set(eligiblePrefixes)):
+            if self.prefix == prefix or prefix in [a.prefix for a in self.attributes] or prefix in prefixList:
+                d = ' xmlns:%s="%s"' % (prefix, self.resolvePrefix(prefix)[1])
+                s.append(d)
+                eligiblePrefixes.remove(prefix)
+        return (''.join(s), eligiblePrefixes)
+        
     def nsdeclarations(self):
         """
         Get a string representation for all namespace declarations

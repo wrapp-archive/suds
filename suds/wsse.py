@@ -25,11 +25,11 @@ from suds.sax.element import Element
 from suds.sax.parser import Parser
 from suds.sax.date import UTC
 from datetime import datetime, timedelta
-from hashlib import sha1
 from base64 import b64encode,b64decode
 from M2Crypto import *
 from struct import pack
 import random
+import hashlib
 
 try:
     from hashlib import md5
@@ -81,6 +81,25 @@ blockEncryptionProperties[BLOCK_ENCRYPTION_3DES_CBC] =  {
     'key_size': 24,
     'block_size': 8,
     'iv_size': 8}
+
+DIGEST_SHA1 = 'http://www.w3.org/2000/09/xmldsig#sha1'
+DIGEST_SHA256 = 'http://www.w3.org/2001/04/xmlenc#sha256'
+DIGEST_SHA512 = 'http://www.w3.org/2001/04/xmlenc#sha512'
+DIGEST_RIPEMD160 = 'http://www.w3.org/2001/04/xmlenc#ripemd160'
+
+digestProperties = dict()
+digestProperties[DIGEST_SHA1] = {
+    'uri': DIGEST_SHA1,
+    'hashlib_alg': 'sha1'}
+digestProperties[DIGEST_SHA256] = {
+    'uri': DIGEST_SHA256,
+    'hashlib_alg': 'sha256'}
+digestProperties[DIGEST_SHA512] = {
+    'uri': DIGEST_SHA512,
+    'hashlib_alg': 'sha512'}
+digestProperties[DIGEST_RIPEMD160] = {
+    'uri': DIGEST_RIPEMD160,
+    'hashlib_alg': 'ripemd160'}
 
 def build_key_info(cert):
     key_info = Element("KeyInfo", ns=dsns)
@@ -202,7 +221,8 @@ class Security(Object):
                         prefix_list = transform.getChild("InclusiveNamespaces").get("PrefixList").split(" ")
                 element_digested = signed_data_blocks[signed_part_id[1:]]
                 element_content = element_digested.canonical(prefix_list)
-                hash = sha1()
+                digest_props = digestProperties[signed_part.getChild("DigestMethod").get("Algorithm")]
+                hash = hashlib.new(digest_props['hashlib_alg'])
                 hash.update(element_content)
                 if hash.digest() <> enclosed_digest:
                     raise Exception, "digest for section with id " + signed_part_id[1:] + " failed verification"
@@ -362,7 +382,8 @@ class Signature(Object):
             element_to_digest.set('wsu:Id', 'id-' + str(id_index))
             id_index = id_index + 1
             element_content = element_to_digest.canonical()
-            hash = sha1()
+            digest_props = digestProperties[self.digest]
+            hash = hashlib.new(digest_props['hashlib_alg'])
             hash.update(element_content)
             element_to_store_digest.setText(b64encode(hash.digest()))
         for (element_to_store_signature, element_to_sign_func) in self.signature_elements:
@@ -398,7 +419,7 @@ class Signature(Object):
             transform.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
             transforms.append(transform)
             digest_method = Element("DigestMethod", ns=dsns)
-            digest_method.set("Algorithm", "http://www.w3.org/2000/09/xmldsig#sha1")
+            digest_method.set("Algorithm", digestProperties[self.digest]['uri'])
             digest_value = Element("DigestValue", ns=dsns)
             self.digest_elements.append((digest_value, signed_part_func))
             reference.append(transforms)
@@ -423,6 +444,7 @@ class Signature(Object):
         self.key = key
         self.cert = cert
         self.signed_parts = []
+        self.digest = DIGEST_SHA1
 
 class Key(Object):
     def encryptMessage(self, env):

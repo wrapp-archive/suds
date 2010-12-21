@@ -29,6 +29,7 @@ from base64 import b64encode,b64decode
 from M2Crypto import *
 import random
 import hashlib
+from suds.pki import *
 
 try:
     from hashlib import md5
@@ -111,24 +112,15 @@ keyTransportProperties[KEY_TRANSPORT_RSA_OAEP] = {
     'uri': KEY_TRANSPORT_RSA_OAEP,
     'padding': RSA.pkcs1_oaep_padding}
 
-def build_key_info(cert):
+def build_key_info(x509_issuer_serial):
     key_info = Element("KeyInfo", ns=dsns)
     sec_token_ref = Element("SecurityTokenReference", ns=wssens)
     x509_data = Element("X509Data", ns=dsns)
     issuer_serial = Element("X509IssuerSerial", ns=dsns)
-    x509_cert = X509.load_cert(cert, X509.FORMAT_PEM)
-    x509_cert_issuer = x509_cert.get_issuer()
     issuer_name = Element("X509IssuerName", ns=dsns)
-    issuer_name_list = []
-    x509_cert_issuer.CN and issuer_name_list.append("CN=%s" % x509_cert_issuer.CN)
-    x509_cert_issuer.OU and issuer_name_list.append("OU=%s" % x509_cert_issuer.OU)
-    x509_cert_issuer.O and issuer_name_list.append("O=%s" % x509_cert_issuer.O)
-    x509_cert_issuer.L and issuer_name_list.append("L=%s" % x509_cert_issuer.L)
-    x509_cert_issuer.ST and issuer_name_list.append("ST=%s" % x509_cert_issuer.ST)
-    x509_cert_issuer.C and issuer_name_list.append("C=%s" % x509_cert_issuer.C)
-    issuer_name.setText(",".join(issuer_name_list))
+    issuer_name.setText(x509_issuer_serial.getX509IssuerSerial()[0])
     serial_number = Element("X509SerialNumber", ns=dsns)
-    serial_number.setText(x509_cert.get_serial_number())
+    serial_number.setText(x509_issuer_serial.getX509IssuerSerial()[1])
     issuer_serial.append(issuer_name)
     issuer_serial.append(serial_number)
     x509_data.append(issuer_serial)
@@ -181,7 +173,7 @@ class Security(Object):
             key_transport_method = key_elt.getChild("EncryptionMethod").get("Algorithm")
             key_transport_props = keyTransportProperties[key_transport_method]
             enc_key = b64decode(key_elt.getChild("CipherData").getChild("CipherValue").getText())
-            priv_key = RSA.load_key(self.signatures[0].key)
+            priv_key = self.signatures[0].key.getRsaPrivateKey()
             sym_key = priv_key.private_decrypt(enc_key, key_transport_props['padding'])
             for data_block_id in [c.get("URI") for c in key_elt.getChild("ReferenceList").getChildren("DataReference")]:
                 if not data_block_id[0] == "#":
@@ -215,7 +207,7 @@ class Security(Object):
                 prefix_list = sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces").get("PrefixList").split(" ")
             signed_content = sig_elt.getChild("SignedInfo", ns=dsns).canonical(prefix_list)
             signature = b64decode(sig_elt.getChild("SignatureValue", ns=dsns).getText())
-            pub_key = X509.load_cert(self.keys[0].cert).get_pubkey()
+            pub_key = self.keys[0].cert.getEvpPublicKey()
             pub_key.reset_context(md='sha1')
             pub_key.verify_init()
             pub_key.verify_update(signed_content.encode("utf-8"))
@@ -401,7 +393,7 @@ class Signature(Object):
         for (element_to_store_signature, element_to_sign_func) in self.signature_elements:
             element_to_sign = element_to_sign_func(env)
             element_content = element_to_sign.canonical()
-            priv_key = EVP.load_key(self.key)
+            priv_key = self.key.getEvpPrivateKey()
             priv_key.sign_init()
             priv_key.sign_update(element_content.encode("utf-8"))
             signed_digest = priv_key.sign_final()
@@ -442,19 +434,19 @@ class Signature(Object):
         sig_value = Element("SignatureValue", ns=dsns)
         self.signature_elements.append((sig_value, lambda env: signed_info))
 
-        key_info = build_key_info(self.cert)
+        key_info = build_key_info(self.x509_issuer_serial)
         
         root.append(signed_info)
         root.append(sig_value)
         root.append(key_info)
         return root
 
-    def __init__(self, key, cert):
+    def __init__(self, key, x509_issuer_serial):
         Object.__init__(self)
         self.digest_elements = None
         self.signature_elements = None
         self.key = key
-        self.cert = cert
+        self.x509_issuer_serial = x509_issuer_serial
         self.signed_parts = []
         self.digest = DIGEST_SHA1
 
@@ -514,7 +506,7 @@ class Key(Object):
         block_encryption_props = blockEncryptionProperties[self.blockEncryption]
         self.sym_key = bytearray([self.random.getrandbits(8) for i in range(0, block_encryption_props['key_size'])])
         self.iv = bytearray([self.random.getrandbits(8) for i in range(0, block_encryption_props['iv_size'])])
-        pub_key = X509.load_cert(self.cert).get_pubkey().get_rsa()
+        pub_key = self.cert.getRsaPublicKey()
         enc_sym_key = pub_key.public_encrypt(self.sym_key, keyTransportProperties[self.keyTransport]['padding'])
         cipher_value.setText(b64encode(enc_sym_key))
         cipher_data.append(cipher_value)

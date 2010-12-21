@@ -494,6 +494,7 @@ class Key(Object):
             enc_data.append(key_info)
             enc_data.append(cipher_data)
             
+            element_to_encrypt.setText('')
             for child in element_to_encrypt.children:
                 element_to_encrypt.remove(child)
             element_to_encrypt.append(enc_data)

@@ -374,6 +374,7 @@ class Binding:
         wsse = self.options().wsse
         if wsse is not None:
             content.append(wsse.xml())
+        content.append(self.action(method))
         content.append(self.messageid())
         headers = self.options().soapheaders
         if not isinstance(headers, (tuple,list,dict)):
@@ -510,6 +511,11 @@ class Binding:
         for rt in self.bodypart_types(method, input=False):
             result.append(rt)
         return result
+
+    def action(self, method):
+        action = Element('Action', ns=wsa)
+        action.setText(method.soap.action)
+        return action
 
     def messageid(self):
         messageid = Element('MessageID', ns=wsa)

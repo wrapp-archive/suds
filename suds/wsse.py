@@ -101,6 +101,17 @@ digestProperties[DIGEST_RIPEMD160] = {
     'uri': DIGEST_RIPEMD160,
     'hashlib_alg': 'ripemd160'}
 
+KEY_TRANSPORT_RSA_1_5 = 'http://www.w3.org/2001/04/xmlenc#rsa-1_5'
+KEY_TRANSPORT_RSA_OAEP = 'http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p'
+
+keyTransportProperties = dict()
+keyTransportProperties[KEY_TRANSPORT_RSA_1_5] = {
+    'uri': KEY_TRANSPORT_RSA_1_5,
+    'padding': RSA.pkcs1_padding}
+keyTransportProperties[KEY_TRANSPORT_RSA_OAEP] = {
+    'uri': KEY_TRANSPORT_RSA_OAEP,
+    'padding': RSA.pkcs1_oaep_padding}
+
 def build_key_info(cert):
     key_info = Element("KeyInfo", ns=dsns)
     sec_token_ref = Element("SecurityTokenReference", ns=wssens)
@@ -168,9 +179,11 @@ class Security(Object):
 
         env.walk(collectEncryptedDataBlock)
         for key_elt in env.getChild("Header").getChild("Security").getChildren("EncryptedKey", ns=wsencns):
+            key_transport_method = key_elt.getChild("EncryptionMethod").get("Algorithm")
+            key_transport_props = keyTransportProperties[key_transport_method]
             enc_key = b64decode(key_elt.getChild("CipherData").getChild("CipherValue").getText())
             priv_key = RSA.load_key(self.signatures[0].key)
-            sym_key = priv_key.private_decrypt(enc_key, RSA.pkcs1_oaep_padding)
+            sym_key = priv_key.private_decrypt(enc_key, key_transport_props['padding'])
             for data_block_id in [c.get("URI") for c in key_elt.getChild("ReferenceList").getChildren("DataReference")]:
                 if not data_block_id[0] == "#":
                     raise Exception, "Cannot handle non-local data references"
@@ -494,7 +507,7 @@ class Key(Object):
         # TODO change to support multiple encryption keys
         root.set("Id", "EncKeyId-1")
         enc_method = Element("EncryptionMethod", ns=wsencns)
-        enc_method.set("Algorithm", "http://www.w3.org/2001/04/xmlenc#rsa-1_5")
+        enc_method.set("Algorithm", keyTransportProperties[self.keyTransport]['uri'])
         key_info = build_key_info(self.cert)
         
         cipher_data = Element("CipherData", ns=wsencns)
@@ -503,7 +516,7 @@ class Key(Object):
         self.sym_key = bytearray([self.random.getrandbits(8) for i in range(0, block_encryption_props['key_size'])])
         self.iv = bytearray([self.random.getrandbits(8) for i in range(0, block_encryption_props['iv_size'])])
         pub_key = X509.load_cert(self.cert).get_pubkey().get_rsa()
-        enc_sym_key = pub_key.public_encrypt(self.sym_key, RSA.pkcs1_padding)
+        enc_sym_key = pub_key.public_encrypt(self.sym_key, keyTransportProperties[self.keyTransport]['padding'])
         cipher_value.setText(b64encode(enc_sym_key))
         cipher_data.append(cipher_value)
         
@@ -527,3 +540,4 @@ class Key(Object):
         self.random = random.SystemRandom()
         self.encrypted_parts = []
         self.blockEncryption = BLOCK_ENCRYPTION_AES128_CBC
+        self.keyTransport = KEY_TRANSPORT_RSA_OAEP

@@ -77,7 +77,7 @@ blockEncryptionProperties[BLOCK_ENCRYPTION_AES256_CBC] = {
     'iv_size': 16}
 blockEncryptionProperties[BLOCK_ENCRYPTION_3DES_CBC] =  {
     'uri': BLOCK_ENCRYPTION_3DES_CBC,
-    'openssl_cipher': 'des_ede_cbc',
+    'openssl_cipher': 'des_ede3_cbc',
     'key_size': 24,
     'block_size': 8,
     'iv_size': 8}

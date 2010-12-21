@@ -150,6 +150,7 @@ class Security(Object):
         self.signatures = []
         self.references = []
         self.keys = []
+        self.keystore = Keystore()
         
     def signMessage(self, env):
         for s in self.signatures:
@@ -173,7 +174,9 @@ class Security(Object):
             key_transport_method = key_elt.getChild("EncryptionMethod").get("Algorithm")
             key_transport_props = keyTransportProperties[key_transport_method]
             enc_key = b64decode(key_elt.getChild("CipherData").getChild("CipherValue").getText())
-            priv_key = self.signatures[0].key.getRsaPrivateKey()
+            x509_issuer_serial_elt = key_elt.getChild("KeyInfo").getChild("SecurityTokenReference").getChild("X509Data").getChild("X509IssuerSerial")
+            x509_issuer_serial = (x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
+            priv_key = self.keystore.lookupByX509IssuerSerial(x509_issuer_serial).getRsaPrivateKey()
             sym_key = priv_key.private_decrypt(enc_key, key_transport_props['padding'])
             for data_block_id in [c.get("URI") for c in key_elt.getChild("ReferenceList").getChildren("DataReference")]:
                 if not data_block_id[0] == "#":
@@ -207,7 +210,9 @@ class Security(Object):
                 prefix_list = sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces").get("PrefixList").split(" ")
             signed_content = sig_elt.getChild("SignedInfo", ns=dsns).canonical(prefix_list)
             signature = b64decode(sig_elt.getChild("SignatureValue", ns=dsns).getText())
-            pub_key = self.keys[0].cert.getEvpPublicKey()
+            x509_issuer_serial_elt = sig_elt.getChild("KeyInfo").getChild("SecurityTokenReference").getChild("X509Data").getChild("X509IssuerSerial")
+            x509_issuer_serial = (x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
+            pub_key = self.keystore.lookupByX509IssuerSerial(x509_issuer_serial).getEvpPublicKey()
             pub_key.reset_context(md='sha1')
             pub_key.verify_init()
             pub_key.verify_update(signed_content.encode("utf-8"))

@@ -1,4 +1,5 @@
 from M2Crypto import *
+import string
 
 class X509IssuerSerialKeypairReference:
     def __init__(self, x509_issuer_serial):
@@ -42,3 +43,21 @@ class RsaPemFilePrivateKey:
     
     def getRsaPrivateKey(self):
         return self.rsakey
+
+class Keystore:
+    def __init__(self):
+        self.keystore = dict()
+    
+    def addKey(self, key, x509_issuer_serial):
+        self.keystore[self.normalize_serial(x509_issuer_serial)] = key
+    
+    def addCertificate(self, cert):
+        self.keystore[self.normalize_serial(cert.getX509IssuerSerial())] = cert
+    
+    def lookupByX509IssuerSerial(self, x509_issuer_serial):
+        return self.keystore[self.normalize_serial(x509_issuer_serial)]
+    
+    def normalize_serial(self, x509_issuer_serial):
+        x509_issuer = x509_issuer_serial[0]
+        new_x509_issuer_list = map(string.lstrip, x509_issuer.split(','))
+        return (','.join(new_x509_issuer_list), x509_issuer_serial[1])

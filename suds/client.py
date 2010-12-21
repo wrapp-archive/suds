@@ -662,7 +662,7 @@ class SoapClient:
         action = self.method.soap.action
         if isinstance(action, unicode):
             action = action.encode('utf-8')
-        stock = { 'Content-Type' : 'text/xml; charset=utf-8', 'SOAPAction': action }
+        stock = { 'Content-Type' : 'text/xml; charset=utf-8', 'SOAPAction': '"%s"' % action }
         result = dict(stock, **self.options.headers)
         log.debug('headers = %s', result)
         return result

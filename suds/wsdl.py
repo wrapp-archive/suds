@@ -571,7 +571,7 @@ class Binding(NamedObject):
             op.name = c.get('name')
             sop = c.getChild('operation', default=dsop)
             soap = Facade('soap')
-            soap.action = '"%s"' % sop.get('soapAction', default='')
+            soap.action = sop.get('soapAction', default='')
             soap.style = sop.get('style', default=self.soap.style)
             soap.input = Facade('Input')
             soap.input.body = Facade('Body')

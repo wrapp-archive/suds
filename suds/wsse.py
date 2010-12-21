@@ -112,6 +112,10 @@ keyTransportProperties[KEY_TRANSPORT_RSA_OAEP] = {
     'uri': KEY_TRANSPORT_RSA_OAEP,
     'padding': RSA.pkcs1_oaep_padding}
 
+def generate_unique_id(do_not_pass_this=[0]):
+    do_not_pass_this[0] = do_not_pass_this[0] + 1
+    return do_not_pass_this[0]
+
 def build_key_info(x509_issuer_serial):
     key_info = Element("KeyInfo", ns=dsns)
     sec_token_ref = Element("SecurityTokenReference", ns=wssens)
@@ -385,11 +389,14 @@ class Timestamp(Token):
 
 class Signature(Object):
     def signMessage(self, env):
-        id_index = 1
-        for (element_to_store_digest, element_to_digest_func) in self.digest_elements:
+        for (reference, element_to_store_digest, element_to_digest_func) in self.digest_elements:
             element_to_digest = element_to_digest_func(env)
-            element_to_digest.set('wsu:Id', 'id-' + str(id_index))
-            id_index = id_index + 1
+            if element_to_digest.get('wsu:Id'):
+                element_id = element_to_digest.get('wsu:Id')
+            else:
+                element_id = "id-" + str(generate_unique_id())
+                element_to_digest.set('wsu:Id', element_id)
+            reference.set("URI", "#" + element_id)
             element_content = element_to_digest.canonical()
             digest_props = digestProperties[self.digest]
             hash = hashlib.new(digest_props['hashlib_alg'])
@@ -418,11 +425,8 @@ class Signature(Object):
         signed_info.append(canon_method)
         signed_info.append(sig_method)
 
-        id_index = 1
         for signed_part_func in self.signed_parts:
             reference = Element("Reference", ns=dsns)
-            reference.set("URI", "#id-" + str(id_index))
-            id_index = id_index + 1
             transforms = Element("Transforms", ns=dsns)
             transform = Element("Transform", ns=dsns)
             transform.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
@@ -430,7 +434,7 @@ class Signature(Object):
             digest_method = Element("DigestMethod", ns=dsns)
             digest_method.set("Algorithm", digestProperties[self.digest]['uri'])
             digest_value = Element("DigestValue", ns=dsns)
-            self.digest_elements.append((digest_value, signed_part_func))
+            self.digest_elements.append((reference, digest_value, signed_part_func))
             reference.append(transforms)
             reference.append(digest_method)
             reference.append(digest_value)
@@ -457,11 +461,8 @@ class Signature(Object):
 
 class Key(Object):
     def encryptMessage(self, env):
-        id_index = 1
-        for element_to_encrypt_func in self.encrypted_parts:
+        for (element_to_encrypt_func, id) in self.encrypt_elements:
             element_to_encrypt = element_to_encrypt_func(env)
-            id = 'EncDataId-' + str(id_index)
-            id_index = id_index + 1
             element_content = element_to_encrypt.canonical()
             element_content = element_content[element_content.index(">") + 1:element_content.rindex("<")]
             enc_data = Element("EncryptedData", ns=wsencns)
@@ -475,7 +476,7 @@ class Key(Object):
             key_info = Element("KeyInfo", ns=dsns)
             sec_token_ref = Element("SecurityTokenReference", ns=wssens)
             wsse_reference = Element("Reference", ns=wssens)
-            wsse_reference.set("URI", "#EncKeyId-1")
+            wsse_reference.set("URI", "#" + self.id)
             sec_token_ref.append(wsse_reference)
             key_info.append(sec_token_ref)
             
@@ -500,9 +501,10 @@ class Key(Object):
             element_to_encrypt.append(enc_data)
 
     def xml(self):
+        self.encrypt_elements = []
+        
         root = Element("EncryptedKey", ns=wsencns)
-        # TODO change to support multiple encryption keys
-        root.set("Id", "EncKeyId-1")
+        root.set("Id", self.id)
         enc_method = Element("EncryptionMethod", ns=wsencns)
         enc_method.set("Algorithm", keyTransportProperties[self.keyTransport]['uri'])
         key_info = build_key_info(self.cert)
@@ -518,11 +520,11 @@ class Key(Object):
         cipher_data.append(cipher_value)
         
         reference_list = Element("ReferenceList", ns=wsencns)
-        id_index = 1
         for part in self.encrypted_parts:
             reference = Element("DataReference", ns=wsencns)
-            reference.set("URI", '#EncDataId-' + str(id_index))
-            id_index = id_index + 1
+            id = "EncDataId-" + str(generate_unique_id())
+            reference.set("URI", '#' + id)
+            self.encrypt_elements.append((part, id))
             reference_list.append(reference)
 
         root.append(enc_method)
@@ -535,6 +537,7 @@ class Key(Object):
         Object.__init__(self)
         self.cert = cert
         self.random = random.SystemRandom()
+        self.id = "EncKeyId-" + str(generate_unique_id())
         self.encrypted_parts = []
         self.blockEncryption = BLOCK_ENCRYPTION_AES128_CBC
         self.keyTransport = KEY_TRANSPORT_RSA_OAEP

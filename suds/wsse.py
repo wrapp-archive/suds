@@ -27,7 +27,6 @@ from suds.sax.date import UTC
 from datetime import datetime, timedelta
 from base64 import b64encode,b64decode
 from M2Crypto import *
-from struct import pack
 import random
 import hashlib
 

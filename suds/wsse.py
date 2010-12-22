@@ -462,12 +462,13 @@ class Signature(Object):
 class Key(Object):
     def encryptMessage(self, env):
         for (element_to_encrypt_func, id) in self.encrypt_elements:
-            element_to_encrypt = element_to_encrypt_func(env)
+            (element_to_encrypt, type) = element_to_encrypt_func(env)
             element_content = element_to_encrypt.canonical()
-            element_content = element_content[element_content.index(">") + 1:element_content.rindex("<")]
+            if type == 'Content':
+                element_content = element_content[element_content.index(">") + 1:element_content.rindex("<")]
             enc_data = Element("EncryptedData", ns=wsencns)
             enc_data.set("Id", id)
-            enc_data.set("Type", "http://www.w3.org/2001/04/xmlenc#Content")
+            enc_data.set("Type", "http://www.w3.org/2001/04/xmlenc#" + type)
             
             block_encryption_props = blockEncryptionProperties[self.blockEncryption]
             enc_method = Element("EncryptionMethod", ns=wsencns)
@@ -495,10 +496,13 @@ class Key(Object):
             enc_data.append(key_info)
             enc_data.append(cipher_data)
             
-            element_to_encrypt.setText('')
-            for child in element_to_encrypt.children:
-                element_to_encrypt.remove(child)
-            element_to_encrypt.append(enc_data)
+            if type == 'Element':
+                element_to_encrypt.parent.replaceChild(element_to_encrypt, enc_data)
+            elif type == 'Content':
+                element_to_encrypt.setText('')
+                for child in element_to_encrypt.children:
+                    element_to_encrypt.remove(child)
+                element_to_encrypt.append(enc_data)
 
     def xml(self):
         self.encrypt_elements = []

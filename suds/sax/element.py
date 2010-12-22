@@ -805,7 +805,7 @@ class Element:
         result.append('<%s' % self.qname())
         (nsdeclarations, eligiblePrefixes) = self.canonicalnsdeclarations(prefixList, eligiblePrefixes)
         result.append(nsdeclarations)
-        for a in [unicode(a) for a in sorted(self.attributes, lambda a_key: self.resolvePrefix(a_key)[1] + ':' + a_key.name)]:
+        for a in [unicode(a) for a in sorted(self.attributes, key=lambda a_key: (a_key.prefix and self.resolvePrefix(a_key.prefix)[1] or '') + ':' + a_key.name)]:
             result.append(' %s' % a)
         result.append('>')
         if self.hasText():

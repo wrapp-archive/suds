@@ -150,19 +150,28 @@ class Security(Object):
         """ """
         Object.__init__(self)
         self.mustUnderstand = True
+        self.encryptThenSign = False
         self.tokens = []
         self.signatures = []
         self.references = []
         self.keys = []
         self.keystore = Keystore()
 
-    def processIncomingMessage(self):
-        self.decryptMessage(soapenv)
-        self.verifyMessage(soapenv)
+    def processIncomingMessage(self, soapenv):
+        if self.encryptThenSign:
+            self.verifyMessage(soapenv)
+            self.decryptMessage(soapenv)
+        else:
+            self.decryptMessage(soapenv)
+            self.verifyMessage(soapenv)
 
-    def processOutgoingMessage(self):
-        self.signMessage(env)
-        self.encryptMessage(env)
+    def processOutgoingMessage(self, soapenv):
+        if self.encryptThenSign:
+            self.encryptMessage(soapenv)
+            self.signMessage(soapenv)
+        else:
+            self.signMessage(soapenv)
+            self.encryptMessage(soapenv)
     
     def signMessage(self, env):
         for s in self.signatures:

@@ -39,7 +39,7 @@ log = getLogger(__name__)
 wsdlns = (None, "http://schemas.xmlsoap.org/wsdl/")
 soapns = (None, 'http://schemas.xmlsoap.org/wsdl/soap/')
 soap12ns = (None, 'http://schemas.xmlsoap.org/wsdl/soap12/')
-
+wspns = (None, 'http://www.w3.org/ns/ws-policy')
 
 class WObject(Object):
     """
@@ -148,6 +148,7 @@ class Definitions(WObject):
         self.port_types = {}
         self.bindings = {}
         self.services = []
+        self.policies = []
         self.add_children(self.root)
         self.children.sort()
         pmd = self.__metadata__.__print__
@@ -194,6 +195,13 @@ class Definitions(WObject):
                 continue
             if isinstance(child, Service):
                 self.services.append(child)
+                continue
+        for c in root.getChildren(ns=wspns):
+            child = Factory.create(c, self)
+            if child is None: continue
+            self.children.append(child)
+            if isinstance(child, Policy):
+                self.policies.append(child)
                 continue
                 
     def open_imports(self):
@@ -379,6 +387,17 @@ class Types(WObject):
     def __gt__(self, other):
         return isinstance(other, Import)
     
+
+class Policy(WObject):
+    def __init__(self, root, definitions):
+        """
+        @param root: An XML root element.
+        @type root: L{Element}
+        @param definitions: A definitions object.
+        @type definitions: L{Definitions}
+        """
+        pass
+
 
 class Part(NamedObject):
     """
@@ -888,7 +907,6 @@ class Service(NamedObject):
     def __gt__(self, other):
         return True
 
-
 class Factory:
     """
     Simple WSDL object factory.
@@ -904,6 +922,7 @@ class Factory:
         'portType' : PortType,
         'binding' : Binding,
         'service' : Service,
+        'Policy' : Policy,
     }
     
     @classmethod

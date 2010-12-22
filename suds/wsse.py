@@ -268,8 +268,12 @@ class Security(Object):
     def timestamp(self):
         root = Element('Timestamp', ns=wsuns)
         created = Element('Created', ns=wsuns)
-        created.setText(str(UTC(datetime.utcnow())))
+        now = datetime.utcnow()
+        # xsd:datetime format does not have fractional seconds
+        now = now - timedelta(microseconds=now.microsecond)
+        created.setText(str(UTC(now)))
         root.append(created)
+        print root
         return root
 
 

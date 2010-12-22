@@ -156,13 +156,13 @@ class Security(Object):
         self.keys = []
         self.keystore = Keystore()
 
-    def processIncomingMessage(self):
+    def processIncomingMessage(self, soapenv):
         self.decryptMessage(soapenv)
         self.verifyMessage(soapenv)
 
-    def processOutgoingMessage(self):
-        self.signMessage(env)
-        self.encryptMessage(env)
+    def processOutgoingMessage(self, soapenv):
+        self.signMessage(soapenv)
+        self.encryptMessage(soapenv)
     
     def signMessage(self, env):
         for s in self.signatures:

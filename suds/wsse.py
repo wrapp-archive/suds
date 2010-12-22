@@ -150,6 +150,7 @@ class Security(Object):
         """ """
         Object.__init__(self)
         self.mustUnderstand = True
+        self.includeTimestamp = True
         self.tokens = []
         self.signatures = []
         self.references = []
@@ -256,7 +257,8 @@ class Security(Object):
         """
         root = Element('Security', ns=wssens)
         root.set('mustUnderstand', str(self.mustUnderstand).lower())
-        root.append(self.timestamp())
+        if self.includeTimestamp:
+            root.append(self.timestamp())
         for t in self.tokens:
             root.append(t.xml())
         for k in self.keys:

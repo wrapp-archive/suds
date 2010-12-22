@@ -128,8 +128,7 @@ class Binding:
             wsse = self.options().wsse
             if wsse is not None:
                 env.addPrefix('wsu', 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
-                wsse.signMessage(env)
-                wsse.encryptMessage(env)
+                wsse.processOutgoingMessage(env)
             env.promotePrefixes()
         else:
             env.refitPrefixes()
@@ -155,8 +154,7 @@ class Binding:
         plugins.message.parsed(reply=replyroot)
         soapenv = replyroot.getChild('Envelope')
         if self.options().wsse:
-            self.options().wsse.decryptMessage(soapenv)
-            self.options().wsse.verifyMessage(soapenv)
+            self.options().wsse.processIncomingMessage(soapenv)
         soapenv.promotePrefixes()
         soapbody = soapenv.getChild('Body')
         self.detect_fault(soapbody)

@@ -155,7 +155,15 @@ class Security(Object):
         self.references = []
         self.keys = []
         self.keystore = Keystore()
-        
+
+    def processIncomingMessage(self):
+        self.decryptMessage(soapenv)
+        self.verifyMessage(soapenv)
+
+    def processOutgoingMessage(self):
+        self.signMessage(env)
+        self.encryptMessage(env)
+    
     def signMessage(self, env):
         for s in self.signatures:
             s.signMessage(env)

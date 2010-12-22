@@ -256,12 +256,20 @@ class Security(Object):
         """
         root = Element('Security', ns=wssens)
         root.set('mustUnderstand', str(self.mustUnderstand).lower())
+        root.append(self.timestamp())
         for t in self.tokens:
             root.append(t.xml())
         for k in self.keys:
             root.append(k.xml())
         for s in self.signatures:
 		    root.append(s.xml())
+        return root
+    
+    def timestamp(self):
+        root = Element('Timestamp', ns=wsuns)
+        created = Element('Created', ns=wsuns)
+        created.setText(str(UTC(datetime.utcnow())))
+        root.append(created)
         return root
 
 

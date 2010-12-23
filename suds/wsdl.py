@@ -40,6 +40,7 @@ wsdlns = (None, "http://schemas.xmlsoap.org/wsdl/")
 soapns = (None, 'http://schemas.xmlsoap.org/wsdl/soap/')
 soap12ns = (None, 'http://schemas.xmlsoap.org/wsdl/soap12/')
 wspns = (None, 'http://www.w3.org/ns/ws-policy')
+spns = (None, 'http://docs.oasis-open.org/ws-sx/ws-securitypolicy/200702')
 
 class WObject(Object):
     """
@@ -246,6 +247,7 @@ class Definitions(WObject):
                 m.name = name
                 m.location = p.location
                 m.binding = Facade('binding')
+                m.policy = self.build_policy()
                 op = binding.operation(name)
                 m.soap = op.soap
                 key = '/'.join((op.soap.style, op.soap.input.body.use))
@@ -254,7 +256,18 @@ class Definitions(WObject):
                 m.binding.output = bindings.get(key)
                 op = ptype.operation(name)
                 p.methods[name] = m
-                
+    
+    def build_policy(self):
+        policy = Facade('policy')
+        policy.wsseEnabled = False
+        policy.includeTimestamp = False
+        for wsdl_policy in self.policies:
+            if wsdl_policy.binding:
+                if wsdl_policy.binding.getChild("IncludeTimestamp") is not None:
+                    policy.includeTimestamp = True
+                    policy.wsseEnabled = True
+        return policy
+    
     def set_wrapped(self):
         """ set (wrapped|bare) flag on messages """
         for b in self.bindings.values():
@@ -396,9 +409,11 @@ class Policy(WObject):
         @param definitions: A definitions object.
         @type definitions: L{Definitions}
         """
-        pass
-
-
+        WObject.__init__(self, root, definitions)
+        self.binding = root.getChild('AsymmetricBinding') or root.getChild('SymmetricBinding') or root.getChild('TransportBinding')
+        if self.binding:
+            self.binding = self.binding.getChild('Policy')
+        
 class Part(NamedObject):
     """
     Represents <message><part/></message>.

@@ -35,6 +35,7 @@ from suds.xsd.sxbasic import Element as SchemaElement
 from suds.options import Options
 from suds.plugin import PluginContainer
 from suds.wsaddr import Action, MessageID, To
+from suds.wsse import Security
 from copy import deepcopy 
 
 log = getLogger(__name__)
@@ -111,6 +112,7 @@ class Binding:
         @rtype: L{Document}
         """
 
+        self.enforce_policy_outgoing(method)
         content = self.headercontent(method)
         header = self.header(content)
         content = self.bodycontent(method, args, kwargs)
@@ -490,6 +492,13 @@ class Binding:
         for rt in self.bodypart_types(method, input=False):
             result.append(rt)
         return result
+
+    def enforce_policy_outgoing(self, method):
+        policy = method.policy
+        if policy.wsseEnabled:
+            if not self.options().wsse:
+                self.options().wsse = Security()
+            self.options().wsse.includeTimestamp = policy.includeTimestamp
 
 class PartElement(SchemaElement):
     """

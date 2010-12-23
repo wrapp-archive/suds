@@ -264,11 +264,17 @@ class Definitions(WObject):
         policy.wsseEnabled = False
         policy.includeTimestamp = False
         policy.addressing = False
+        policy.requiredTransports = None
         for wsdl_policy in binding.policies:
             if wsdl_policy.binding:
                 if wsdl_policy.binding.getChild("IncludeTimestamp") is not None:
                     policy.includeTimestamp = True
                     policy.wsseEnabled = True
+                if wsdl_policy.binding_type == 'TransportBinding':
+                    transport_token = wsdl_policy.binding.getChild("TransportToken")
+                    if transport_token is not None:
+                        if transport_token.getChild("Policy", ns=wspns).getChild("HttpsToken") is not None:
+                            policy.requiredTransports = ['https']
             if wsdl_policy.root.getChild("Addressing") is not None and policy.addressing == False:
                 optional = wsdl_policy.root.getChild("Addressing").get("Optional", ns=wspns)
                 if optional == "false" or optional is None:
@@ -420,7 +426,9 @@ class Policy(NamedObject):
         """
         NamedObject.__init__(self, root, definitions, ('Id', wsuns))
         self.binding = root.getChild('AsymmetricBinding') or root.getChild('SymmetricBinding') or root.getChild('TransportBinding')
-        if self.binding:
+        self.binding_type = None
+        if self.binding is not None:
+            self.binding_type = self.binding.name
             self.binding = self.binding.getChild('Policy')
         
 class Part(NamedObject):

@@ -591,6 +591,7 @@ class SoapClient:
         @return: The result of the method invocation.
         @rtype: I{builtin}|I{subclass of} L{Object}
         """
+        self.enforce_policy_outgoing()
         timer = metrics.Timer()
         timer.start()
         result = None
@@ -613,6 +614,20 @@ class SoapClient:
                 timer)
         return result
     
+    def enforce_policy_outgoing(self):
+        policy = self.method.policy
+        if policy.wsseEnabled:
+            if not self.options.wsse:
+                self.options.wsse = Security()
+            self.options.wsse.includeTimestamp = policy.includeTimestamp
+        if policy.addressing is not None:
+            self.options.wsaddr = policy.addressing
+        if policy.requiredTransports is not None:
+            for transport_scheme in policy.requiredTransports:
+                if transport_scheme == self.location()[:self.location().find(':')]:
+                    break
+                raise Exception, 'Specified transport is not allowed by WSDL policy'
+
     def send(self, soapenv):
         """
         Send soap message.

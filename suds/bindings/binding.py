@@ -372,8 +372,9 @@ class Binding:
         wsse = self.options().wsse
         if wsse is not None:
             content.append(wsse.xml())
-        content.append(self.action(method))
-        content.append(self.messageid())
+        if self.options().wsaddr:
+            content.append(self.action(method))
+            content.append(self.messageid())
         headers = self.options().soapheaders
         if not isinstance(headers, (tuple,list,dict)):
             headers = (headers,)

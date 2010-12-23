@@ -72,6 +72,9 @@ class Options(Skin):
         - B{doctor} - A schema I{doctor} object.
                 - type: L{Doctor}
                 - default: None
+        - B{wsaddr} - Flag to indicate whether WS-Addressing headers should be sent.
+                - type: L{bool}
+                - default: True (may be overridden by WSDL policy)
         - B{xstq} - The B{x}ml B{s}chema B{t}ype B{q}ualified flag indicates
             that the I{xsi:type} attribute values should be qualified by namespace.
                 - type: I{bool}
@@ -117,6 +120,7 @@ class Options(Skin):
             Definition('soapheaders', (), ()),
             Definition('wsse', Security, None),
             Definition('doctor', Doctor, None),
+            Definition('wsaddr', bool, True),
             Definition('xstq', bool, True),
             Definition('prefixes', bool, True),
             Definition('retxml', bool, False),

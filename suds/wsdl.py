@@ -263,11 +263,18 @@ class Definitions(WObject):
         policy = Facade('policy')
         policy.wsseEnabled = False
         policy.includeTimestamp = False
+        policy.addressing = False
         for wsdl_policy in binding.policies:
             if wsdl_policy.binding:
                 if wsdl_policy.binding.getChild("IncludeTimestamp") is not None:
                     policy.includeTimestamp = True
                     policy.wsseEnabled = True
+            if wsdl_policy.root.getChild("Addressing") is not None and policy.addressing == False:
+                optional = wsdl_policy.root.getChild("Addressing").get("Optional", ns=wspns)
+                if optional == "false" or optional is None:
+                    policy.addressing = True
+                elif optional == "true":
+                    policy.addressing = None # use what the user specifies
         return policy
     
     def set_wrapped(self):

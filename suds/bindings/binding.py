@@ -499,6 +499,8 @@ class Binding:
             if not self.options().wsse:
                 self.options().wsse = Security()
             self.options().wsse.includeTimestamp = policy.includeTimestamp
+        if policy.addressing is not None:
+            self.options().wsaddr = policy.addressing
 
 class PartElement(SchemaElement):
     """

@@ -275,7 +275,6 @@ class Security(Object):
         now = now - timedelta(microseconds=now.microsecond)
         created.setText(str(UTC(now)))
         root.append(created)
-        print root
         return root
 
 

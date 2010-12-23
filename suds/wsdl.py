@@ -31,6 +31,7 @@ from suds.xsd.schema import Schema, SchemaCollection
 from suds.xsd.query import ElementQuery
 from suds.sudsobject import Object, Facade, Metadata
 from suds.reader import DocumentReader, DefinitionsReader
+from suds.wsse import wsuns
 from urlparse import urljoin
 import re, soaparray
 
@@ -81,7 +82,7 @@ class NamedObject(WObject):
     @type qname: (name, I{namespace-uri}).
     """
 
-    def __init__(self, root, definitions):
+    def __init__(self, root, definitions, idAttribute=('name', None)):
         """
         @param root: An XML root element.
         @type root: L{Element}
@@ -89,7 +90,7 @@ class NamedObject(WObject):
         @type definitions: L{Definitions}
         """
         WObject.__init__(self, root, definitions)
-        self.name = root.get('name')
+        self.name = root.get(idAttribute[0], ns=idAttribute[1])
         self.qname = (self.name, definitions.tns[1])
         pmd = self.__metadata__.__print__
         pmd.wrappers['qname'] = repr
@@ -149,7 +150,7 @@ class Definitions(WObject):
         self.port_types = {}
         self.bindings = {}
         self.services = []
-        self.policies = []
+        self.policies = {}
         self.add_children(self.root)
         self.children.sort()
         pmd = self.__metadata__.__print__
@@ -202,7 +203,7 @@ class Definitions(WObject):
             if child is None: continue
             self.children.append(child)
             if isinstance(child, Policy):
-                self.policies.append(child)
+                self.policies[child.qname] = child
                 continue
                 
     def open_imports(self):
@@ -241,13 +242,14 @@ class Definitions(WObject):
         for p in service.ports:
             binding = p.binding
             ptype = p.binding.type
+            policy = self.build_policy(binding)
             operations = p.binding.type.operations.values()
             for name in [op.name for op in operations]:
                 m = Facade('Method')
                 m.name = name
                 m.location = p.location
                 m.binding = Facade('binding')
-                m.policy = self.build_policy()
+                m.policy = policy
                 op = binding.operation(name)
                 m.soap = op.soap
                 key = '/'.join((op.soap.style, op.soap.input.body.use))
@@ -257,11 +259,11 @@ class Definitions(WObject):
                 op = ptype.operation(name)
                 p.methods[name] = m
     
-    def build_policy(self):
+    def build_policy(self, binding):
         policy = Facade('policy')
         policy.wsseEnabled = False
         policy.includeTimestamp = False
-        for wsdl_policy in self.policies:
+        for wsdl_policy in binding.policies:
             if wsdl_policy.binding:
                 if wsdl_policy.binding.getChild("IncludeTimestamp") is not None:
                     policy.includeTimestamp = True
@@ -401,7 +403,7 @@ class Types(WObject):
         return isinstance(other, Import)
     
 
-class Policy(WObject):
+class Policy(NamedObject):
     def __init__(self, root, definitions):
         """
         @param root: An XML root element.
@@ -409,7 +411,7 @@ class Policy(WObject):
         @param definitions: A definitions object.
         @type definitions: L{Definitions}
         """
-        WObject.__init__(self, root, definitions)
+        NamedObject.__init__(self, root, definitions, ('Id', wsuns))
         self.binding = root.getChild('AsymmetricBinding') or root.getChild('SymmetricBinding') or root.getChild('TransportBinding')
         if self.binding:
             self.binding = self.binding.getChild('Policy')
@@ -578,6 +580,7 @@ class Binding(NamedObject):
         """
         NamedObject.__init__(self, root, definitions)
         self.operations = {}
+        self.policies = []
         self.type = root.get('type')
         sr = self.soaproot()
         if sr is None:
@@ -589,6 +592,7 @@ class Binding(NamedObject):
         self.soap.style = sr.get('style', default='document')
         self.soap.version = (sr.namespace()[1] == soap12ns[1]) and 'SOAP12' or 'SOAP11'
         self.add_operations(self.root, definitions)
+        self.add_policies(self.root, definitions)
         
     def soaproot(self):
         """ get the soap:binding """
@@ -642,7 +646,11 @@ class Binding(NamedObject):
                 faults.append(f)
             soap.faults = faults
             self.operations[op.name] = op
-            
+    
+    def add_policies(self, root, definitions):
+        for c in root.getChildren('PolicyReference'):
+            self.policies.append(c.get("URI")[1:])
+
     def body(self, definitions, body, root):
         """ add the input/output body properties """
         if root is None:
@@ -692,11 +700,12 @@ class Binding(NamedObject):
         @type definitions: L{Definitions}
         """
         self.resolveport(definitions)
+        self.resolvepolicies(definitions)
         for op in self.operations.values():
             self.resolvesoapbody(definitions, op)
             self.resolveheaders(definitions, op)
             self.resolvefaults(definitions, op)
-        
+
     def resolveport(self, definitions):
         """
         Resolve port_type reference.
@@ -710,6 +719,17 @@ class Binding(NamedObject):
         else:
             self.type = port_type
             
+    def resolvepolicies(self, definitions):
+        policies = []
+        for policy_name in self.policies:
+            ref = qualify(policy_name, self.root, definitions.tns)
+            policy = definitions.policies.get(ref)
+            if policy is None:
+                raise Exception("policy '%s', not-found" % policy_name)
+            else:
+                policies.append(policy)
+        self.policies = policies
+        
     def resolvesoapbody(self, definitions, op):
         """
         Resolve soap body I{message} parts by 

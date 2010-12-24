@@ -619,7 +619,17 @@ class SoapClient:
         if policy.wsseEnabled:
             if not self.options.wsse:
                 self.options.wsse = Security()
-            self.options.wsse.includeTimestamp = policy.includeTimestamp
+            wsse = self.options.wsse
+            wsse.includeTimestamp = policy.includeTimestamp
+            if policy.digestAlgorithm is not None:
+                for sig in wsse.signatures:
+                    sig.digest = policy.digestAlgorithm
+            if policy.blockEncryption is not None:
+                for key in wsse.keys:
+                    key.blockEncryption = policy.blockEncryption
+            if policy.keyTransport is not None:
+                for key in wsse.keys:
+                    key.keyTransport = policy.keyTransport
         if policy.addressing is not None:
             self.options.wsaddr = policy.addressing
         if policy.requiredTransports is not None:

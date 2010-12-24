@@ -412,6 +412,8 @@ class Signature(Object):
     def signMessage(self, env):
         for (reference, element_to_store_digest, element_to_digest_func) in self.digest_elements:
             element_to_digest = element_to_digest_func(env)
+            if element_to_digest is None:
+                continue
             if element_to_digest.get('wsu:Id'):
                 element_id = element_to_digest.get('wsu:Id')
             else:
@@ -484,6 +486,8 @@ class Key(Object):
     def encryptMessage(self, env):
         for (element_to_encrypt_func, id) in self.encrypt_elements:
             (element_to_encrypt, type) = element_to_encrypt_func(env)
+            if element_to_encrypt is None:
+                continue
             element_content = element_to_encrypt.canonical()
             if type == 'Content':
                 element_content = element_content[element_content.index(">") + 1:element_content.rindex("<")]

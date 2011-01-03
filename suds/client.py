@@ -617,16 +617,16 @@ class SoapClient:
     
     def enforce_policy_outgoing(self):
         policy = self.method.policy
-        if policy.usernameRequired and len(wsse.tokens) == 0:
-            raise Exception, 'WSDL policy requires username token, but no username token was specified in Client'
-        if policy.signatureRequired and len(wsse.signatures) == 0:
-            raise Exception, 'WSDL policy requires signed message, but no signature was specified in Client'
-        if policy.clientCertRequired and not isinstance(self.options.transport, HttpsClientCertAuthenticated):
-            raise Exception, 'WSDL policy requires client certificate authentication with HTTPS, but HttpsClientCertAuthenticated transport was not specified in Client'
         if policy.wsseEnabled:
             if not self.options.wsse:
                 self.options.wsse = Security()
             wsse = self.options.wsse
+            if policy.usernameRequired and len(wsse.tokens) == 0:
+                raise Exception, 'WSDL policy requires username token, but no username token was specified in Client'
+            if policy.signatureRequired and len(wsse.signatures) == 0:
+                raise Exception, 'WSDL policy requires signed message, but no signature was specified in Client'
+            if policy.clientCertRequired and not isinstance(self.options.transport, HttpsClientCertAuthenticated):
+                raise Exception, 'WSDL policy requires client certificate authentication with HTTPS, but HttpsClientCertAuthenticated transport was not specified in Client'
             wsse.includeTimestamp = policy.includeTimestamp
             if policy.digestAlgorithm is not None:
                 for sig in wsse.signatures:

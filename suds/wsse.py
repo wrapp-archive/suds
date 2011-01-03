@@ -415,10 +415,32 @@ class Timestamp(Token):
 
 class Signature(Object):
     def signMessage(self, env):
-        for (reference, element_to_store_digest, element_to_digest_func) in self.digest_elements:
-            element_to_digest = element_to_digest_func(env)
-            if element_to_digest is None:
+        elements_to_digest = []
+        
+        for elements_to_digest_func in self.digest_elements:
+            addl_elements = elements_to_digest_func(env)
+            if addl_elements is None:
                 continue
+            if not isinstance(addl_elements, list):
+                addl_elements = [addl_elements]
+            for element in addl_elements:
+                if element not in elements_to_digest:
+                    elements_to_digest.append(element)
+        
+        for element_to_digest in elements_to_digest:
+            reference = Element("Reference", ns=dsns)
+            transforms = Element("Transforms", ns=dsns)
+            transform = Element("Transform", ns=dsns)
+            transform.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
+            transforms.append(transform)
+            digest_method = Element("DigestMethod", ns=dsns)
+            digest_method.set("Algorithm", digestProperties[self.digest]['uri'])
+            digest_value = Element("DigestValue", ns=dsns)
+            reference.append(transforms)
+            reference.append(digest_method)
+            reference.append(digest_value)
+            self.signed_info.append(reference)        
+
             if element_to_digest.get('wsu:Id'):
                 element_id = element_to_digest.get('wsu:Id')
             else:
@@ -429,15 +451,15 @@ class Signature(Object):
             digest_props = digestProperties[self.digest]
             hash = hashlib.new(digest_props['hashlib_alg'])
             hash.update(element_content)
-            element_to_store_digest.setText(b64encode(hash.digest()))
-        for (element_to_store_signature, element_to_sign_func) in self.signature_elements:
-            element_to_sign = element_to_sign_func(env)
-            element_content = element_to_sign.canonical()
-            priv_key = self.key.getEvpPrivateKey()
-            priv_key.sign_init()
-            priv_key.sign_update(element_content.encode("utf-8"))
-            signed_digest = priv_key.sign_final()
-            element_to_store_signature.setText(b64encode(signed_digest))
+            digest_value.setText(b64encode(hash.digest()))
+
+        element_to_sign = self.signed_info
+        element_content = element_to_sign.canonical()
+        priv_key = self.key.getEvpPrivateKey()
+        priv_key.sign_init()
+        priv_key.sign_update(element_content.encode("utf-8"))
+        signed_digest = priv_key.sign_final()
+        self.sig_value.setText(b64encode(signed_digest))
     
     def xml(self):
         self.digest_elements = []
@@ -445,36 +467,23 @@ class Signature(Object):
         
         root = Element("Signature", ns=dsns)
 
-        signed_info = Element("SignedInfo", ns=dsns)
+        self.signed_info = Element("SignedInfo", ns=dsns)
         canon_method = Element("CanonicalizationMethod", ns=dsns)
         canon_method.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
         sig_method = Element("SignatureMethod", ns=dsns)
         sig_method.set("Algorithm", "http://www.w3.org/2000/09/xmldsig#rsa-sha1")
-        signed_info.append(canon_method)
-        signed_info.append(sig_method)
+        self.signed_info.append(canon_method)
+        self.signed_info.append(sig_method)
 
         for signed_part_func in self.signed_parts:
-            reference = Element("Reference", ns=dsns)
-            transforms = Element("Transforms", ns=dsns)
-            transform = Element("Transform", ns=dsns)
-            transform.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
-            transforms.append(transform)
-            digest_method = Element("DigestMethod", ns=dsns)
-            digest_method.set("Algorithm", digestProperties[self.digest]['uri'])
-            digest_value = Element("DigestValue", ns=dsns)
-            self.digest_elements.append((reference, digest_value, signed_part_func))
-            reference.append(transforms)
-            reference.append(digest_method)
-            reference.append(digest_value)
-            signed_info.append(reference)        
+            self.digest_elements = self.signed_parts
         
-        sig_value = Element("SignatureValue", ns=dsns)
-        self.signature_elements.append((sig_value, lambda env: signed_info))
+        self.sig_value = Element("SignatureValue", ns=dsns)
 
         key_info = build_key_info(self.x509_issuer_serial)
         
-        root.append(signed_info)
-        root.append(sig_value)
+        root.append(self.signed_info)
+        root.append(self.sig_value)
         root.append(key_info)
         return root
 

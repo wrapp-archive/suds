@@ -296,8 +296,6 @@ class Token(Object):
     @classmethod
     def sysdate(cls):
         utc = UTC()
-        # xsd:datetime format does not have fractional seconds
-        utc = utc - timedelta(microseconds=utc.microsecond)
         return str(utc)
     
     def __init__(self):
@@ -406,10 +404,11 @@ class Timestamp(Token):
         
     def xml(self):
         root = Element("Timestamp", ns=wsuns)
+        # xsd:datetime format does not have fractional seconds
         created = Element('Created', ns=wsuns)
-        created.setText(str(UTC(self.created)))
+        created.setText(str(UTC(self.created - timedelta(microseconds=self.created.microsecond))))
         expires = Element('Expires', ns=wsuns)
-        expires.setText(str(UTC(self.expires)))
+        expires.setText(str(UTC(self.expires - timedelta(microseconds=self.expires.microsecond))))
         root.append(created)
         root.append(expires)
         return root

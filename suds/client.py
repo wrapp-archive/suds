@@ -637,6 +637,10 @@ class SoapClient:
                 if transport_scheme == self.location()[:self.location().find(':')]:
                     break
                 raise Exception, 'Specified transport is not allowed by WSDL policy'
+        if policy.usernameRequired and len(wsse.tokens) == 0:
+            raise Exception, 'WSDL policy requires username token, but no username token was specified in Client'
+        if policy.signatureRequired and len(wsse.signatures) == 0:
+            raise Exception, 'WSDL policy requires signed message, but no signature was specified in Client'            
 
     def send(self, soapenv):
         """

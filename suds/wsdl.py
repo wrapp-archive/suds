@@ -268,6 +268,8 @@ class Definitions(WObject):
         policy.blockEncryption = None
         policy.digestAlgorithm = None
         policy.keyTransport = None
+        policy.usernameRequired = False
+        policy.signatureRequired = False
         for wsdl_policy in binding.policies:
             if wsdl_policy.binding:
                 policy.wsseEnabled = True
@@ -299,6 +301,11 @@ class Definitions(WObject):
                                 policy.keyTransport = KEY_TRANSPORT_RSA_1_5
                             else:
                                 policy.keyTransport = KEY_TRANSPORT_RSA_OAEP
+            for token in wsdl_policy.tokens:
+                if token.getChild("Policy", ns=wspns).getChild("UsernameToken") is not None:
+                    policy.usernameRequired = True
+                if token.getChild("Policy", ns=wspns).getChild("X509Token") is not None:
+                    policy.signatureRequired = True
             if wsdl_policy.root.getChild("Addressing") is not None and policy.addressing == False:
                 optional = wsdl_policy.root.getChild("Addressing").get("Optional", ns=wspns)
                 if optional == "false" or optional is None:
@@ -450,6 +457,7 @@ class Policy(NamedObject):
         """
         NamedObject.__init__(self, root, definitions, ('Id', wsuns))
         self.binding = root.getChild('AsymmetricBinding') or root.getChild('SymmetricBinding') or root.getChild('TransportBinding')
+        self.tokens = filter(lambda x: x.name.endswith("Tokens"), root.getChildren())
         self.binding_type = None
         if self.binding is not None:
             self.binding_type = self.binding.name

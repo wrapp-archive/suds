@@ -242,15 +242,14 @@ class Definitions(WObject):
         for p in service.ports:
             binding = p.binding
             ptype = p.binding.type
-            policy = self.build_policy(binding)
             operations = p.binding.type.operations.values()
             for name in [op.name for op in operations]:
                 m = Facade('Method')
                 m.name = name
                 m.location = p.location
                 m.binding = Facade('binding')
-                m.policy = policy
                 op = binding.operation(name)
+                m.policy = self.build_policy(binding, op)
                 m.soap = op.soap
                 key = '/'.join((op.soap.style, op.soap.input.body.use))
                 m.binding.input = bindings.get(key)
@@ -259,7 +258,7 @@ class Definitions(WObject):
                 op = ptype.operation(name)
                 p.methods[name] = m
     
-    def build_policy(self, binding):
+    def build_policy(self, binding, op):
         policy = Facade('policy')
         policy.wsseEnabled = False
         policy.includeTimestamp = False
@@ -271,7 +270,7 @@ class Definitions(WObject):
         policy.keyTransport = None
         policy.usernameRequired = False
         policy.signatureRequired = False
-        for wsdl_policy in binding.policies:
+        for wsdl_policy in binding.policies + op.soap.input.policies:
             if wsdl_policy.binding:
                 policy.wsseEnabled = True
                 if wsdl_policy.binding.getChild("IncludeTimestamp") is not None:
@@ -669,6 +668,7 @@ class Binding(NamedObject):
             soap.version = self.soap.version
             soap.input = Facade('Input')
             soap.input.body = Facade('Body')
+            soap.input.policies = []
             soap.input.headers = []
             soap.output = Facade('Output')
             soap.output.body = Facade('Body')
@@ -677,6 +677,7 @@ class Binding(NamedObject):
             input = c.getChild('input')
             if input is None:
                 input = Element('input', ns=wsdlns)
+            soap.input.policies = self.add_operation_policies(input)
             body = input.getChild('body')
             self.body(definitions, soap.input.body, body)
             for header in input.getChildren('header'):
@@ -704,6 +705,9 @@ class Binding(NamedObject):
     def add_policies(self, root, definitions):
         for c in root.getChildren('PolicyReference'):
             self.policies.append(c.get("URI")[1:])
+
+    def add_operation_policies(self, op):
+        return [c.get("URI")[1:] for c in op.getChildren('PolicyReference')]
 
     def body(self, definitions, body, root):
         """ add the input/output body properties """
@@ -759,6 +763,7 @@ class Binding(NamedObject):
             self.resolvesoapbody(definitions, op)
             self.resolveheaders(definitions, op)
             self.resolvefaults(definitions, op)
+            self.resolveoppolicies(definitions, op)
 
     def resolveport(self, definitions):
         """
@@ -783,6 +788,17 @@ class Binding(NamedObject):
             else:
                 policies.append(policy)
         self.policies = policies
+    
+    def resolveoppolicies(self, definitions, op):
+        policies = []
+        for policy_name in op.soap.input.policies:
+            ref = qualify(policy_name, self.root, definitions.tns)
+            policy = definitions.policies.get(ref)
+            if policy is None:
+                raise Exception("policy '%s', not-found" % policy_name)
+            else:
+                policies.append(policy)
+        op.soap.input.policies = policies        
         
     def resolvesoapbody(self, definitions, op):
         """

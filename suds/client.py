@@ -637,6 +637,16 @@ class SoapClient:
             if policy.keyTransport is not None:
                 for key in wsse.keys:
                     key.keyTransport = policy.keyTransport
+            for part in policy.signedParts:
+                def create_signed_header_func(ns, name):
+                    return lambda env: env.getChild("Header").getChildren(name, ns=(None, ns))
+                    
+                if part[0] == 'body':
+                    wsse.signatures[0].signed_parts.append(lambda env: env.getChild("Body"))
+                elif part[0] == 'header':
+                    wsse.signatures[0].signed_parts.append(create_signed_header_func(part[1], part[2]))
+            if policy.signatureRequired and policy.includeTimestamp:
+                wsse.signatures[0].signed_parts.append(lambda env: env.getChild("Header").getChild("Security").getChild("Timestamp"))
         if policy.addressing is not None:
             self.options.wsaddr = policy.addressing
         if policy.requiredTransports is not None:

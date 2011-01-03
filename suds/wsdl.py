@@ -270,6 +270,7 @@ class Definitions(WObject):
         policy.keyTransport = None
         policy.usernameRequired = False
         policy.signatureRequired = False
+        policy.signedParts = []
         for wsdl_policy in binding.policies + op.soap.input.policies:
             if wsdl_policy.binding:
                 policy.wsseEnabled = True
@@ -318,6 +319,15 @@ class Definitions(WObject):
                     policy.addressing = True
                 elif optional == "true":
                     policy.addressing = None # use what the user specifies
+            if wsdl_policy.signed_parts is not None:
+                for part in wsdl_policy.signed_parts:
+                    if part.name == "Body":
+                        policy.signedParts.append(('body',))
+                    elif part.name == "Header":
+                        policy.signedParts.append(('header', part.get("Namespace"), part.get("Name")))
+                    else:
+                        # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
+                        pass
         return policy
     
     def set_wrapped(self):
@@ -464,6 +474,9 @@ class Policy(NamedObject):
         NamedObject.__init__(self, root, definitions, ('Id', wsuns))
         self.binding = root.getChild('AsymmetricBinding') or root.getChild('SymmetricBinding') or root.getChild('TransportBinding')
         self.tokens = filter(lambda x: x.name.endswith("Tokens"), root.getChildren())
+        self.signed_parts = None
+        if root.getChild('SignedParts') is not None:
+            self.signed_parts = root.getChild('SignedParts').getChildren()
         self.binding_type = None
         if self.binding is not None:
             self.binding_type = self.binding.name

@@ -267,7 +267,7 @@ class Security(Object):
         root = Element('Security', ns=wssens)
         root.set('mustUnderstand', str(self.mustUnderstand).lower())
         if self.includeTimestamp:
-            root.append(self.timestamp())
+            root.append(Timestamp().xml())
         for t in self.tokens:
             root.append(t.xml())
         if self.encryptThenSign:
@@ -281,17 +281,6 @@ class Security(Object):
             for s in self.signatures:
                 root.append(s.xml())
         return root
-    
-    def timestamp(self):
-        root = Element('Timestamp', ns=wsuns)
-        created = Element('Created', ns=wsuns)
-        now = datetime.utcnow()
-        # xsd:datetime format does not have fractional seconds
-        now = now - timedelta(microseconds=now.microsecond)
-        created.setText(str(UTC(now)))
-        root.append(created)
-        return root
-
 
 class Token(Object):
     """ I{Abstract} security token. """
@@ -307,6 +296,8 @@ class Token(Object):
     @classmethod
     def sysdate(cls):
         utc = UTC()
+        # xsd:datetime format does not have fractional seconds
+        utc = utc - timedelta(microseconds=utc.microsecond)
         return str(utc)
     
     def __init__(self):

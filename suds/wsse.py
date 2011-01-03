@@ -498,10 +498,24 @@ class Signature(Object):
 
 class Key(Object):
     def encryptMessage(self, env):
-        for (element_to_encrypt_func, id) in self.encrypt_elements:
-            (element_to_encrypt, type) = element_to_encrypt_func(env)
-            if element_to_encrypt is None:
+        elements_to_encrypt = []
+        
+        for elements_to_encrypt_func in self.encrypt_elements:
+            addl_elements = elements_to_encrypt_func(env)
+            if addl_elements is None:
                 continue
+            if not isinstance(addl_elements, list):
+                addl_elements = [addl_elements]
+            for element in addl_elements:
+                if element not in elements_to_encrypt:
+                    elements_to_encrypt.append(element)
+        
+        for (element_to_encrypt, type) in elements_to_encrypt:
+            reference = Element("DataReference", ns=wsencns)
+            id = "EncDataId-" + str(generate_unique_id())
+            reference.set("URI", '#' + id)
+            self.reference_list.append(reference)
+
             element_content = element_to_encrypt.canonical()
             if type == 'Content':
                 element_content = element_content[element_content.index(">") + 1:element_content.rindex("<")]
@@ -562,18 +576,13 @@ class Key(Object):
         cipher_value.setText(b64encode(enc_sym_key))
         cipher_data.append(cipher_value)
         
-        reference_list = Element("ReferenceList", ns=wsencns)
-        for part in self.encrypted_parts:
-            reference = Element("DataReference", ns=wsencns)
-            id = "EncDataId-" + str(generate_unique_id())
-            reference.set("URI", '#' + id)
-            self.encrypt_elements.append((part, id))
-            reference_list.append(reference)
-
+        self.reference_list = Element("ReferenceList", ns=wsencns)
+        self.encrypt_elements = self.encrypted_parts
+        
         root.append(enc_method)
         root.append(key_info)
         root.append(cipher_data)
-        root.append(reference_list)
+        root.append(self.reference_list)
         return root
         
     def __init__(self, cert):

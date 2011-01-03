@@ -288,6 +288,10 @@ class Definitions(WObject):
                                 policy.clientCertRequired = False
                             elif client_cert_req == "true":
                                 policy.clientCertRequired = True
+                if wsdl_policy.binding.getChild("InitiatorToken") is not None:
+                    token = wsdl_policy.binding.getChild("InitiatorToken")
+                    if token.getChild("Policy", ns=wspns).getChild("X509Token") is not None:
+                        policy.signatureRequired = True
                 if policy.blockEncryption is None:
                     algorithm_suite = wsdl_policy.binding.getChild("AlgorithmSuite")
                     if algorithm_suite is not None:

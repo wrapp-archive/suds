@@ -115,5 +115,6 @@ class Options(Skin):
             Definition('cachingpolicy', int, 0),
             Definition('plugins', (list, tuple), []),
             Definition('nosend', bool, False),
+            Definition('enforcepolicy', bool, True),
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))

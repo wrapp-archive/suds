@@ -591,7 +591,8 @@ class SoapClient:
         @return: The result of the method invocation.
         @rtype: I{builtin}|I{subclass of} L{Object}
         """
-        self.enforce_policy_outgoing()
+        if self.options.enforcepolicy:
+            self.enforce_policy_outgoing()
         timer = metrics.Timer()
         timer.start()
         result = None

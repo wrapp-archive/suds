@@ -264,6 +264,7 @@ class Definitions(WObject):
         policy.wsseEnabled = False
         policy.includeTimestamp = False
         policy.addressing = False
+        policy.clientCertRequired = False
         policy.requiredTransports = None
         policy.blockEncryption = None
         policy.digestAlgorithm = None
@@ -280,6 +281,12 @@ class Definitions(WObject):
                     if transport_token is not None:
                         if transport_token.getChild("Policy", ns=wspns).getChild("HttpsToken") is not None:
                             policy.requiredTransports = ['https']
+                            https_token = transport_token.getChild("Policy", ns=wspns).getChild("HttpsToken")
+                            client_cert_req = https_token.get("RequireClientCertificate")
+                            if client_cert_req is None or client_cert_req == "false":
+                                policy.clientCertRequired = False
+                            elif client_cert_req == "true":
+                                policy.clientCertRequired = True
                 if policy.blockEncryption is None:
                     algorithm_suite = wsdl_policy.binding.getChild("AlgorithmSuite")
                     if algorithm_suite is not None:

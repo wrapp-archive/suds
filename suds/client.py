@@ -641,7 +641,9 @@ class SoapClient:
         if policy.usernameRequired and len(wsse.tokens) == 0:
             raise Exception, 'WSDL policy requires username token, but no username token was specified in Client'
         if policy.signatureRequired and len(wsse.signatures) == 0:
-            raise Exception, 'WSDL policy requires signed message, but no signature was specified in Client'            
+            raise Exception, 'WSDL policy requires signed message, but no signature was specified in Client'
+        if policy.clientCertRequired and not isinstance(self.options.transport, HttpsClientCertAuthenticated):
+            raise Exception, 'WSDL policy requires client certificate authentication with HTTPS, but HttpsClientCertAuthenticated transport was not specified in Client'
 
     def send(self, soapenv):
         """

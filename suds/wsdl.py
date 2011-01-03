@@ -271,6 +271,7 @@ class Definitions(WObject):
         policy.usernameRequired = False
         policy.signatureRequired = False
         policy.signedParts = []
+        policy.encryptedParts = []
         for wsdl_policy in binding.policies + op.soap.input.policies:
             if wsdl_policy.binding:
                 policy.wsseEnabled = True
@@ -325,6 +326,15 @@ class Definitions(WObject):
                         policy.signedParts.append(('body',))
                     elif part.name == "Header":
                         policy.signedParts.append(('header', part.get("Namespace"), part.get("Name")))
+                    else:
+                        # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
+                        pass
+            if wsdl_policy.encrypted_parts is not None:
+                for part in wsdl_policy.encrypted_parts:
+                    if part.name == "Body":
+                        policy.encryptedParts.append(('body',))
+                    elif part.name == "Header":
+                        policy.encryptedParts.append(('header', part.get("Namespace"), part.get("Name")))
                     else:
                         # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
                         pass
@@ -475,8 +485,11 @@ class Policy(NamedObject):
         self.binding = root.getChild('AsymmetricBinding') or root.getChild('SymmetricBinding') or root.getChild('TransportBinding')
         self.tokens = filter(lambda x: x.name.endswith("Tokens"), root.getChildren())
         self.signed_parts = None
+        self.encrypted_parts = None
         if root.getChild('SignedParts') is not None:
             self.signed_parts = root.getChild('SignedParts').getChildren()
+        if root.getChild('EncryptedParts') is not None:
+            self.encrypted_parts = root.getChild('EncryptedParts').getChildren()
         self.binding_type = None
         if self.binding is not None:
             self.binding_type = self.binding.name

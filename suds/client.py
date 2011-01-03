@@ -645,6 +645,12 @@ class SoapClient:
                     wsse.signatures[0].signed_parts.append(lambda env: env.getChild("Body"))
                 elif part[0] == 'header':
                     wsse.signatures[0].signed_parts.append(create_signed_header_func(part[1], part[2]))
+            for part in policy.encryptedParts:
+                if part[0] == 'body':
+                    wsse.keys[0].encrypted_parts.append(lambda env: (env.getChild("Body"), "Content"))
+                elif part[0] == 'header':
+                    # Encrypted headers require special handling, which we don't currently support
+                    pass
             if policy.signatureRequired and policy.includeTimestamp:
                 wsse.signatures[0].signed_parts.append(lambda env: env.getChild("Header").getChild("Security").getChild("Timestamp"))
         if policy.addressing is not None:

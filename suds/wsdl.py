@@ -270,9 +270,9 @@ class Definitions(WObject):
         policy.keyTransport = None
         for wsdl_policy in binding.policies:
             if wsdl_policy.binding:
+                policy.wsseEnabled = True
                 if wsdl_policy.binding.getChild("IncludeTimestamp") is not None:
                     policy.includeTimestamp = True
-                    policy.wsseEnabled = True
                 if wsdl_policy.binding_type == 'TransportBinding':
                     transport_token = wsdl_policy.binding.getChild("TransportToken")
                     if transport_token is not None:

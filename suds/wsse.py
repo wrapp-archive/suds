@@ -151,6 +151,7 @@ class Security(Object):
         Object.__init__(self)
         self.mustUnderstand = True
         self.includeTimestamp = True
+        self.encryptThenSign = False
         self.tokens = []
         self.signatures = []
         self.references = []
@@ -158,12 +159,20 @@ class Security(Object):
         self.keystore = Keystore()
 
     def processIncomingMessage(self, soapenv):
-        self.decryptMessage(soapenv)
-        self.verifyMessage(soapenv)
+        if self.encryptThenSign:
+            self.verifyMessage(soapenv)
+            self.decryptMessage(soapenv)
+        else:
+            self.decryptMessage(soapenv)
+            self.verifyMessage(soapenv)
 
     def processOutgoingMessage(self, soapenv):
-        self.signMessage(soapenv)
-        self.encryptMessage(soapenv)
+        if self.encryptThenSign:
+            self.encryptMessage(soapenv)
+            self.signMessage(soapenv)
+        else:
+            self.signMessage(soapenv)
+            self.encryptMessage(soapenv)
     
     def signMessage(self, env):
         for s in self.signatures:
@@ -261,10 +270,16 @@ class Security(Object):
             root.append(self.timestamp())
         for t in self.tokens:
             root.append(t.xml())
-        for k in self.keys:
-            root.append(k.xml())
-        for s in self.signatures:
-		    root.append(s.xml())
+        if self.encryptThenSign:
+            for s in self.signatures:
+                root.append(s.xml())            
+            for k in self.keys:
+                root.append(k.xml())
+        else:
+            for k in self.keys:
+                root.append(k.xml())
+            for s in self.signatures:
+                root.append(s.xml())
         return root
     
     def timestamp(self):

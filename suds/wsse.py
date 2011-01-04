@@ -267,10 +267,16 @@ class Security(Object):
         root.set('mustUnderstand', str(self.mustUnderstand).lower())
         for t in self.tokens:
             root.append(t.xml())
-        for k in self.keys:
-            root.append(k.xml())
-        for s in self.signatures:
-		    root.append(s.xml())
+        if self.encryptThenSign:
+            for s in self.signatures:
+                root.append(s.xml())            
+            for k in self.keys:
+                root.append(k.xml())
+        else:
+            for k in self.keys:
+                root.append(k.xml())
+            for s in self.signatures:
+                root.append(s.xml())
         return root
 
 

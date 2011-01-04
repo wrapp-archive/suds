@@ -279,6 +279,8 @@ class Definitions(WObject):
                     policy.includeTimestamp = True
                 if wsdl_policy.binding.getChild("EncryptSignature") is not None:
                     policy.encryptedParts.append(('signature',))
+                if wsdl_policy.binding.getChild("EncryptBeforeSigning") is not None:
+                    policy.encryptThenSign = True
                 if wsdl_policy.binding_type == 'TransportBinding':
                     transport_token = wsdl_policy.binding.getChild("TransportToken")
                     if transport_token is not None:

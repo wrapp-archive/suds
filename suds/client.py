@@ -628,6 +628,7 @@ class SoapClient:
             if policy.clientCertRequired and not isinstance(self.options.transport, HttpsClientCertAuthenticated):
                 raise Exception, 'WSDL policy requires client certificate authentication with HTTPS, but HttpsClientCertAuthenticated transport was not specified in Client'
             wsse.includeTimestamp = policy.includeTimestamp
+            wsse.encryptThenSign = policy.encryptThenSign
             if policy.digestAlgorithm is not None:
                 for sig in wsse.signatures:
                     sig.digest = policy.digestAlgorithm

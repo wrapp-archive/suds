@@ -553,6 +553,7 @@ class Binding(NamedObject):
         soap = Facade('soap')
         self.soap = soap
         self.soap.style = sr.get('style', default='document')
+        self.soap.version = (sr.namespace()[1] == soap12ns[1]) and 'SOAP12' or 'SOAP11'
         self.add_operations(self.root, definitions)
         
     def soaproot(self):
@@ -573,6 +574,7 @@ class Binding(NamedObject):
             soap = Facade('soap')
             soap.action = sop.get('soapAction', default='')
             soap.style = sop.get('style', default=self.soap.style)
+            soap.version = self.soap.version
             soap.input = Facade('Input')
             soap.input.body = Facade('Body')
             soap.input.headers = []

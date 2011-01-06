@@ -501,6 +501,12 @@ class Policy(NamedObject):
         @type definitions: L{Definitions}
         """
         NamedObject.__init__(self, root, definitions, ('Id', wsuns))
+        # WCF likes to wrap the policy in a meaningless wsp:ExactlyOne/wsp:All combo
+        # TODO full policy parsing will remove the need for this
+        if root.getChild('ExactlyOne') is not None and len(root.getChildren()) == 1:
+            eo = root.getChild('ExactlyOne')
+            if eo.getChild('All') is not None and len(eo.getChildren()) == 1:
+                root = eo.getChild('All')
         self.binding = root.getChild('AsymmetricBinding') or root.getChild('SymmetricBinding') or root.getChild('TransportBinding')
         self.tokens = filter(lambda x: x.name.endswith("Tokens"), root.getChildren())
         self.signed_parts = None

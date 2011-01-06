@@ -270,6 +270,7 @@ class Definitions(WObject):
         policy.keyTransport = None
         policy.usernameRequired = False
         policy.signatureRequired = False
+        policy.encryptThenSign = False
         policy.signedParts = []
         policy.encryptedParts = []
         for wsdl_policy in binding.policies + op.soap.input.policies:

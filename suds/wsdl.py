@@ -41,6 +41,7 @@ wsdlns = (None, "http://schemas.xmlsoap.org/wsdl/")
 soapns = (None, 'http://schemas.xmlsoap.org/wsdl/soap/')
 soap12ns = (None, 'http://schemas.xmlsoap.org/wsdl/soap12/')
 wspns = (None, 'http://www.w3.org/ns/ws-policy')
+wspns2 = (None, 'http://schemas.xmlsoap.org/ws/2004/09/policy')
 spns = (None, 'http://docs.oasis-open.org/ws-sx/ws-securitypolicy/200702')
 
 class WObject(Object):
@@ -198,7 +199,16 @@ class Definitions(WObject):
             if isinstance(child, Service):
                 self.services.append(child)
                 continue
+        # Policies have two different options for namespaces
+        # Check children of either one
         for c in root.getChildren(ns=wspns):
+            child = Factory.create(c, self)
+            if child is None: continue
+            self.children.append(child)
+            if isinstance(child, Policy):
+                self.policies[child.qname] = child
+                continue
+        for c in root.getChildren(ns=wspns2):
             child = Factory.create(c, self)
             if child is None: continue
             self.children.append(child)
@@ -285,9 +295,9 @@ class Definitions(WObject):
                 if wsdl_policy.binding_type == 'TransportBinding':
                     transport_token = wsdl_policy.binding.getChild("TransportToken")
                     if transport_token is not None:
-                        if transport_token.getChild("Policy", ns=wspns).getChild("HttpsToken") is not None:
+                        if transport_token.getChild("Policy").getChild("HttpsToken") is not None:
                             policy.requiredTransports = ['https']
-                            https_token = transport_token.getChild("Policy", ns=wspns).getChild("HttpsToken")
+                            https_token = transport_token.getChild("Policy").getChild("HttpsToken")
                             client_cert_req = https_token.get("RequireClientCertificate")
                             if client_cert_req is None or client_cert_req == "false":
                                 policy.clientCertRequired = False
@@ -295,13 +305,13 @@ class Definitions(WObject):
                                 policy.clientCertRequired = True
                 if wsdl_policy.binding.getChild("InitiatorToken") is not None:
                     token = wsdl_policy.binding.getChild("InitiatorToken")
-                    if token.getChild("Policy", ns=wspns).getChild("X509Token") is not None:
+                    if token.getChild("Policy").getChild("X509Token") is not None:
                         policy.signatureRequired = True
                 if policy.blockEncryption is None:
                     algorithm_suite = wsdl_policy.binding.getChild("AlgorithmSuite")
                     if algorithm_suite is not None:
-                        if algorithm_suite.getChild("Policy", ns=wspns) is not None:
-                            algorithm_policy_name = algorithm_suite.getChild("Policy", ns=wspns).getChildren()[0].name
+                        if algorithm_suite.getChild("Policy") is not None:
+                            algorithm_policy_name = algorithm_suite.getChild("Policy").getChildren()[0].name
                             if "Basic128" in algorithm_policy_name:
                                 policy.blockEncryption = BLOCK_ENCRYPTION_AES128_CBC
                             elif "Basic192" in algorithm_policy_name:
@@ -319,12 +329,12 @@ class Definitions(WObject):
                             else:
                                 policy.keyTransport = KEY_TRANSPORT_RSA_OAEP
             for token in wsdl_policy.tokens:
-                if token.getChild("Policy", ns=wspns).getChild("UsernameToken") is not None:
+                if token.getChild("Policy").getChild("UsernameToken") is not None:
                     policy.usernameRequired = True
-                if token.getChild("Policy", ns=wspns).getChild("X509Token") is not None:
+                if token.getChild("Policy").getChild("X509Token") is not None:
                     policy.signatureRequired = True
             if wsdl_policy.root.getChild("Addressing") is not None and policy.addressing == False:
-                optional = wsdl_policy.root.getChild("Addressing").get("Optional", ns=wspns)
+                optional = wsdl_policy.root.getChild("Addressing").get("Optional")
                 if optional == "false" or optional is None:
                     policy.addressing = True
                 elif optional == "true":

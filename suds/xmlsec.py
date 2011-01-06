@@ -111,9 +111,9 @@ def build_key_info(x509_issuer_serial):
     x509_data = Element("X509Data", ns=dsns)
     issuer_serial = Element("X509IssuerSerial", ns=dsns)
     issuer_name = Element("X509IssuerName", ns=dsns)
-    issuer_name.setText(x509_issuer_serial.getX509IssuerSerial()[0])
+    issuer_name.setText(x509_issuer_serial.getX509IssuerSerial().getIssuer())
     serial_number = Element("X509SerialNumber", ns=dsns)
-    serial_number.setText(x509_issuer_serial.getX509IssuerSerial()[1])
+    serial_number.setText(x509_issuer_serial.getX509IssuerSerial().getSerial())
     issuer_serial.append(issuer_name)
     issuer_serial.append(serial_number)
     x509_data.append(issuer_serial)
@@ -194,8 +194,8 @@ def verifyMessage(env, keystore):
         signed_content = sig_elt.getChild("SignedInfo", ns=dsns).canonical(prefix_list)
         signature = b64decode(sig_elt.getChild("SignatureValue", ns=dsns).getText())
         x509_issuer_serial_elt = sig_elt.getChild("KeyInfo").getChild("SecurityTokenReference").getChild("X509Data").getChild("X509IssuerSerial")
-        x509_issuer_serial = (x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
-        pub_key = keystore.lookupByX509IssuerSerial(x509_issuer_serial).getEvpPublicKey()
+        x509_issuer_serial = X509IssuerSerialKeypairReference(x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
+        pub_key = keystore.lookup(x509_issuer_serial).getEvpPublicKey()
         pub_key.reset_context(md='sha1')
         pub_key.verify_init()
         pub_key.verify_update(signed_content.encode("utf-8"))
@@ -308,8 +308,8 @@ def decryptMessage(env, keystore):
         key_transport_props = keyTransportProperties[key_transport_method]
         enc_key = b64decode(key_elt.getChild("CipherData").getChild("CipherValue").getText())
         x509_issuer_serial_elt = key_elt.getChild("KeyInfo").getChild("SecurityTokenReference").getChild("X509Data").getChild("X509IssuerSerial")
-        x509_issuer_serial = (x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
-        priv_key = keystore.lookupByX509IssuerSerial(x509_issuer_serial).getRsaPrivateKey()
+        x509_issuer_serial = X509IssuerSerialKeypairReference(x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
+        priv_key = keystore.lookup(x509_issuer_serial).getRsaPrivateKey()
         sym_key = priv_key.private_decrypt(enc_key, key_transport_props['padding'])
         for data_block_id in [c.get("URI") for c in key_elt.getChild("ReferenceList").getChildren("DataReference")]:
             if not data_block_id[0] == "#":

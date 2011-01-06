@@ -2,11 +2,24 @@ from M2Crypto import *
 import string
 
 class X509IssuerSerialKeypairReference:
-    def __init__(self, x509_issuer_serial):
-        self.x509_issuer_serial = x509_issuer_serial
+    def __init__(self, issuer, serial):
+        self.issuer = self.normalize_serial(issuer)
+        self.serial = serial
     
-    def getX509IssuerSerial(self):
-        return self.x509_issuer_serial
+    def getIssuer(self):
+        return self.issuer
+    
+    def getSerial(self):
+        return self.serial
+    
+    def __hash__(self):
+        return 17 * self.issuer.__hash__() + 23 * self.serial.__hash__()
+    
+    def __eq__(self, other):
+        return self.issuer == other.getIssuer() and self.serial == other.getSerial()
+
+    def normalize_serial(self, issuer):
+        return ','.join(map(string.lstrip, issuer.split(',')))
 
 class X509PemFileCertificate:
     def __init__(self, pem_file_name):
@@ -16,6 +29,12 @@ class X509PemFileCertificate:
     def getX509IssuerSerial(self):
         return self.x509_issuer_serial
 
+    def getIssuer(self):
+        return self.x509_issuer_serial.getIssuer()
+    
+    def getSerial(self):
+        return self.x509_issuer_serial.getSerial()
+    
     def getRsaPublicKey(self):
         return self.x509_cert.get_pubkey().get_rsa()
         
@@ -31,7 +50,7 @@ class X509PemFileCertificate:
         x509_cert_issuer.L and issuer_name_list.append("L=%s" % x509_cert_issuer.L)
         x509_cert_issuer.ST and issuer_name_list.append("ST=%s" % x509_cert_issuer.ST)
         x509_cert_issuer.C and issuer_name_list.append("C=%s" % x509_cert_issuer.C)
-        return (','.join(issuer_name_list), x509_cert.get_serial_number())
+        return X509IssuerSerialKeypairReference(','.join(issuer_name_list), x509_cert.get_serial_number())
 
 class RsaPemFilePrivateKey:
     def __init__(self, pem_file_name):
@@ -48,16 +67,11 @@ class Keystore:
     def __init__(self):
         self.keystore = dict()
     
-    def addKey(self, key, x509_issuer_serial):
-        self.keystore[self.normalize_serial(x509_issuer_serial)] = key
+    def addKey(self, key, reference):
+        self.keystore[reference] = key
     
     def addCertificate(self, cert):
-        self.keystore[self.normalize_serial(cert.getX509IssuerSerial())] = cert
+        self.keystore[cert.getX509IssuerSerial()] = cert
     
-    def lookupByX509IssuerSerial(self, x509_issuer_serial):
-        return self.keystore[self.normalize_serial(x509_issuer_serial)]
-    
-    def normalize_serial(self, x509_issuer_serial):
-        x509_issuer = x509_issuer_serial[0]
-        new_x509_issuer_list = map(string.lstrip, x509_issuer.split(','))
-        return (','.join(new_x509_issuer_list), x509_issuer_serial[1])
+    def lookup(self, reference):
+        return self.keystore[reference]

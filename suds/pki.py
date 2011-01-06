@@ -41,6 +41,9 @@ class X509PemFileCertificate:
     def getEvpPublicKey(self):
         return self.x509_cert.get_pubkey()
     
+    def getReferences(self):
+        return [self.x509_issuer_serial]
+    
     def build_x509_issuer_serial(self, x509_cert):
         x509_cert_issuer = x509_cert.get_issuer()
         issuer_name_list = []
@@ -71,7 +74,8 @@ class Keystore:
         self.keystore[reference] = key
     
     def addCertificate(self, cert):
-        self.keystore[cert.getX509IssuerSerial()] = cert
+        for reference in cert.getReferences():
+            self.keystore[reference] = cert
     
     def lookup(self, reference):
         return self.keystore[reference]

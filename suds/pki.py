@@ -22,7 +22,7 @@ class X509IssuerSerialKeypairReference:
         return ','.join(map(string.lstrip, issuer.split(',')))
 
 class X509FingerprintKeypairReference:
-    def __init__(self, fingerprint, algorithm):
+    def __init__(self, fingerprint, algorithm='sha1'):
         self.fingerprint = fingerprint
         self.algorithm = algorithm
     

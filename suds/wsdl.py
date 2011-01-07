@@ -261,6 +261,7 @@ class Definitions(WObject):
                 m.binding = Facade('binding')
                 op = binding.operation(name)
                 op.soap.input.policy = self.build_policy(binding, op.soap.input)
+                op.soap.output.policy = self.build_policy(binding, op.soap.output)
                 m.soap = op.soap
                 key = '/'.join((op.soap.style, op.soap.input.body.use))
                 m.binding.input = bindings.get(key)
@@ -665,6 +666,7 @@ class Binding(NamedObject):
             output = c.getChild('output')
             if output is None:
                 output = Element('output', ns=wsdlns)
+            soap.output.policies = self.add_operation_policies(output)
             body = output.getChild('body')
             self.body(definitions, soap.output.body, body)
             for header in output.getChildren('header'):
@@ -743,7 +745,8 @@ class Binding(NamedObject):
             self.resolvesoapbody(definitions, op)
             self.resolveheaders(definitions, op)
             self.resolvefaults(definitions, op)
-            self.resolveoppolicies(definitions, op)
+            self.resolveoppolicies(definitions, op.soap.input)
+            self.resolveoppolicies(definitions, op.soap.output)
 
     def resolveport(self, definitions):
         """
@@ -769,16 +772,16 @@ class Binding(NamedObject):
                 policies.append(policy)
         self.policies = policies
     
-    def resolveoppolicies(self, definitions, op):
+    def resolveoppolicies(self, definitions, msg):
         policies = []
-        for policy_name in op.soap.input.policies:
+        for policy_name in msg.policies:
             ref = qualify(policy_name, self.root, definitions.tns)
             policy = definitions.policies.get(ref)
             if policy is None:
                 raise Exception("policy '%s', not-found" % policy_name)
             else:
                 policies.append(policy)
-        op.soap.input.policies = policies        
+        msg.policies = policies        
         
     def resolvesoapbody(self, definitions, op):
         """

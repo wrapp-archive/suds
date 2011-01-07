@@ -31,7 +31,7 @@ from suds.xsd.schema import Schema, SchemaCollection
 from suds.xsd.query import ElementQuery
 from suds.sudsobject import Object, Facade, Metadata
 from suds.reader import DocumentReader, DefinitionsReader
-from suds.wsse import *
+from suds.wsse import wsuns
 from urlparse import urljoin
 import re, soaparray
 import wspolicy
@@ -285,79 +285,7 @@ class Definitions(WObject):
         policy.signedParts = []
         policy.encryptedParts = []
         for wsdl_policy in binding.policies + op.soap.input.policies:
-            if wsdl_policy.binding:
-                policy.wsseEnabled = True
-                if wsdl_policy.binding.getChild("IncludeTimestamp") is not None:
-                    policy.includeTimestamp = True
-                if wsdl_policy.binding.getChild("EncryptSignature") is not None:
-                    policy.encryptedParts.append(('signature',))
-                if wsdl_policy.binding.getChild("EncryptBeforeSigning") is not None:
-                    policy.encryptThenSign = True
-                if wsdl_policy.binding_type == 'TransportBinding':
-                    transport_token = wsdl_policy.binding.getChild("TransportToken")
-                    if transport_token is not None:
-                        if transport_token.getChild("Policy").getChild("HttpsToken") is not None:
-                            policy.requiredTransports = ['https']
-                            https_token = transport_token.getChild("Policy").getChild("HttpsToken")
-                            client_cert_req = https_token.get("RequireClientCertificate")
-                            if client_cert_req is None or client_cert_req == "false":
-                                policy.clientCertRequired = False
-                            elif client_cert_req == "true":
-                                policy.clientCertRequired = True
-                if wsdl_policy.binding.getChild("InitiatorToken") is not None:
-                    token = wsdl_policy.binding.getChild("InitiatorToken")
-                    if token.getChild("Policy").getChild("X509Token") is not None:
-                        policy.signatureRequired = True
-                if policy.blockEncryption is None:
-                    algorithm_suite = wsdl_policy.binding.getChild("AlgorithmSuite")
-                    if algorithm_suite is not None:
-                        if algorithm_suite.getChild("Policy") is not None:
-                            algorithm_policy_name = algorithm_suite.getChild("Policy").getChildren()[0].name
-                            if "Basic128" in algorithm_policy_name:
-                                policy.blockEncryption = BLOCK_ENCRYPTION_AES128_CBC
-                            elif "Basic192" in algorithm_policy_name:
-                                policy.blockEncryption = BLOCK_ENCRYPTION_AES192_CBC
-                            elif "Basic256" in algorithm_policy_name:
-                                policy.blockEncryption = BLOCK_ENCRYPTION_AES256_CBC
-                            elif "TripleDes" in algorithm_policy_name:
-                                policy.blockEncryption = BLOCK_ENCRYPTION_3DES_CBC
-                            if "Sha256" in algorithm_policy_name:
-                                policy.digestAlgorithm = DIGEST_SHA256
-                            else:
-                                policy.digestAlogrithm = DIGEST_SHA1
-                            if "Rsa15" in algorithm_policy_name:
-                                policy.keyTransport = KEY_TRANSPORT_RSA_1_5
-                            else:
-                                policy.keyTransport = KEY_TRANSPORT_RSA_OAEP
-            for token in wsdl_policy.tokens:
-                if token.getChild("Policy").getChild("UsernameToken") is not None:
-                    policy.usernameRequired = True
-                if token.getChild("Policy").getChild("X509Token") is not None:
-                    policy.signatureRequired = True
-            if wsdl_policy.root.getChild("Addressing") is not None and policy.addressing == False:
-                optional = wsdl_policy.root.getChild("Addressing").get("Optional")
-                if optional == "false" or optional is None:
-                    policy.addressing = True
-                elif optional == "true":
-                    policy.addressing = None # use what the user specifies
-            if wsdl_policy.signed_parts is not None:
-                for part in wsdl_policy.signed_parts:
-                    if part.name == "Body":
-                        policy.signedParts.append(('body',))
-                    elif part.name == "Header":
-                        policy.signedParts.append(('header', part.get("Namespace"), part.get("Name")))
-                    else:
-                        # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
-                        pass
-            if wsdl_policy.encrypted_parts is not None:
-                for part in wsdl_policy.encrypted_parts:
-                    if part.name == "Body":
-                        policy.encryptedParts.append(('body',))
-                    elif part.name == "Header":
-                        policy.encryptedParts.append(('header', part.get("Namespace"), part.get("Name")))
-                    else:
-                        # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
-                        pass
+            policy.addFromWsdl(wsdl_policy)
         return policy
     
     def set_wrapped(self):

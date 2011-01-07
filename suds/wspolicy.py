@@ -19,6 +19,7 @@ The I{wspolicy} module provides support for WS-Policy.
 """
 
 from suds.sudsobject import Object, merge
+from suds.wsse import *
 
 def override(base_policy, override_policy):
     new_policy = Policy()
@@ -27,4 +28,78 @@ def override(base_policy, override_policy):
     return new_policy
 
 class Policy(Object):
-    pass
+    def addFromWsdl(self, wsdl_policy):
+        if wsdl_policy.binding:
+            self.wsseEnabled = True
+            if wsdl_policy.binding.getChild("IncludeTimestamp") is not None:
+                self.includeTimestamp = True
+            if wsdl_policy.binding.getChild("EncryptSignature") is not None:
+                self.encryptedParts.append(('signature',))
+            if wsdl_policy.binding.getChild("EncryptBeforeSigning") is not None:
+                self.encryptThenSign = True
+            if wsdl_policy.binding_type == 'TransportBinding':
+                transport_token = wsdl_policy.binding.getChild("TransportToken")
+                if transport_token is not None:
+                    if transport_token.getChild("Policy").getChild("HttpsToken") is not None:
+                        self.requiredTransports = ['https']
+                        https_token = transport_token.getChild("Policy").getChild("HttpsToken")
+                        client_cert_req = https_token.get("RequireClientCertificate")
+                        if client_cert_req is None or client_cert_req == "false":
+                            self.clientCertRequired = False
+                        elif client_cert_req == "true":
+                            self.clientCertRequired = True
+            if wsdl_policy.binding.getChild("InitiatorToken") is not None:
+                token = wsdl_policy.binding.getChild("InitiatorToken")
+                if token.getChild("Policy").getChild("X509Token") is not None:
+                    self.signatureRequired = True
+            if self.blockEncryption is None:
+                algorithm_suite = wsdl_policy.binding.getChild("AlgorithmSuite")
+                if algorithm_suite is not None:
+                    if algorithm_suite.getChild("Policy") is not None:
+                        algorithm_policy_name = algorithm_suite.getChild("Policy").getChildren()[0].name
+                        if "Basic128" in algorithm_policy_name:
+                            self.blockEncryption = BLOCK_ENCRYPTION_AES128_CBC
+                        elif "Basic192" in algorithm_policy_name:
+                            self.blockEncryption = BLOCK_ENCRYPTION_AES192_CBC
+                        elif "Basic256" in algorithm_policy_name:
+                            self.blockEncryption = BLOCK_ENCRYPTION_AES256_CBC
+                        elif "TripleDes" in algorithm_policy_name:
+                            self.blockEncryption = BLOCK_ENCRYPTION_3DES_CBC
+                        if "Sha256" in algorithm_policy_name:
+                            self.digestAlgorithm = DIGEST_SHA256
+                        else:
+                            self.digestAlogrithm = DIGEST_SHA1
+                        if "Rsa15" in algorithm_policy_name:
+                            self.keyTransport = KEY_TRANSPORT_RSA_1_5
+                        else:
+                            self.keyTransport = KEY_TRANSPORT_RSA_OAEP
+        for token in wsdl_policy.tokens:
+            if token.getChild("Policy").getChild("UsernameToken") is not None:
+                self.usernameRequired = True
+            if token.getChild("Policy").getChild("X509Token") is not None:
+                self.signatureRequired = True
+        if wsdl_policy.root.getChild("Addressing") is not None and self.addressing == False:
+            optional = wsdl_policy.root.getChild("Addressing").get("Optional")
+            if optional == "false" or optional is None:
+                self.addressing = True
+            elif optional == "true":
+                self.addressing = None # use what the user specifies
+        if wsdl_policy.signed_parts is not None:
+            for part in wsdl_policy.signed_parts:
+                if part.name == "Body":
+                    self.signedParts.append(('body',))
+                elif part.name == "Header":
+                    self.signedParts.append(('header', part.get("Namespace"), part.get("Name")))
+                else:
+                    # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
+                    pass
+        if wsdl_policy.encrypted_parts is not None:
+            for part in wsdl_policy.encrypted_parts:
+                if part.name == "Body":
+                    self.encryptedParts.append(('body',))
+                elif part.name == "Header":
+                    self.encryptedParts.append(('header', part.get("Namespace"), part.get("Name")))
+                else:
+                    # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
+                    pass
+

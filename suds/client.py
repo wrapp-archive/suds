@@ -683,8 +683,11 @@ class SoapClient:
         """
         log.debug('http succeeded:\n%s', reply)
         plugins = PluginContainer(self.options.plugins)
+        sax = Parser()
+        replyroot = sax.parse(string=reply)
+        plugins.message.parsed(reply=replyroot)
         if len(reply) > 0:
-            reply, result = binding.get_reply(self.method, reply)
+            reply, result = binding.get_reply(self.method, replyroot)
             self.last_received(reply)
         else:
             result = None
@@ -708,7 +711,9 @@ class SoapClient:
         log.debug('http failed:\n%s', reply)
         if status == 500:
             if len(reply) > 0:
-                r, p = binding.get_fault(reply)
+                sax = Parser()
+                faultroot = sax.parse(string=reply)
+                r, p = binding.get_fault(faultroot)
                 self.last_received(r)
                 return (status, p)
             else:

@@ -48,8 +48,6 @@ class Binding:
     """
     The soap binding class used to process outgoing and imcoming
     soap messages per the WSDL port binding.
-    @cvar replyfilter: The reply filter function.
-    @type replyfilter: (lambda s,r: r)
     @ivar wsdl: The wsdl.
     @type wsdl: L{suds.wsdl.Definitions}
     @ivar schema: The collective schema contained within the wsdl.
@@ -58,8 +56,6 @@ class Binding:
     @type options: L{Options}
     """
     
-    replyfilter = (lambda s,r: r)
-
     def __init__(self, wsdl):
         """
         @param wsdl: A wsdl.
@@ -141,18 +137,13 @@ class Binding:
         @param method: The name of the invoked method.
         @type method: str
         @param reply: The reply XML received after invoking the specified method.
-        @type reply: str
+        @type reply: Document
         @return: The unmarshalled reply.  The returned value is an L{Object} for a
             I{list} depending on whether the service returns a single object or a 
             collection.
         @rtype: tuple ( L{Element}, L{Object} )
         """
-        reply = self.replyfilter(reply)
-        sax = Parser()
-        replyroot = sax.parse(string=reply)
-        plugins = PluginContainer(self.options().plugins)
-        plugins.message.parsed(reply=replyroot)
-        soapenv = replyroot.getChild('Envelope')
+        soapenv = reply.getChild('Envelope')
         if self.options().wsse:
             self.options().wsse.processIncomingMessage(soapenv)
         soapenv.promotePrefixes()
@@ -163,17 +154,17 @@ class Binding:
         rtypes = self.returned_types(method)
         if len(rtypes) > 1:
             result = self.replycomposite(rtypes, nodes)
-            return (replyroot, result)
+            return (reply, result)
         if len(rtypes) == 1:
             if rtypes[0].unbounded():
                 result = self.replylist(rtypes[0], nodes)
-                return (replyroot, result)
+                return (reply, result)
             if len(nodes):
                 unmarshaller = self.unmarshaller()
                 resolved = rtypes[0].resolve(nobuiltin=True)
                 result = unmarshaller.process(nodes[0], resolved)
-                return (replyroot, result)
-        return (replyroot, None)
+                return (reply, result)
+        return (reply, None)
     
     def detect_fault(self, body):
         """
@@ -262,17 +253,14 @@ class Binding:
         @return: A fault object.
         @rtype: tuple ( L{Element}, L{Object} )
         """
-        reply = self.replyfilter(reply)
-        sax = Parser()
-        faultroot = sax.parse(string=reply)
-        soapenv = faultroot.getChild('Envelope')
+        soapenv = reply.getChild('Envelope')
         soapbody = soapenv.getChild('Body')
         fault = soapbody.getChild('Fault')
         unmarshaller = self.unmarshaller(False)
         p = unmarshaller.process(fault)
         if self.options().faults:
-            raise WebFault(p, faultroot)
-        return (faultroot, p.detail)
+            raise WebFault(p, reply)
+        return (reply, p.detail)
     
     def mkparam(self, method, pdef, object):
         """

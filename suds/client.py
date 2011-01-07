@@ -671,6 +671,13 @@ class SoapClient:
         pass
         
     def enforce_policy_incoming(self, doc):
+        env = doc.getChild('Envelope')
+        policy = self.method.soap.output.policy
+        if self.options.overridepolicy is not None:
+            policy = override(policy, self.options.overridepolicy)
+        if policy.includeTimestamp:
+            if env.getChild('Header') is None or env.getChild('Header').getChild('Security') is None or env.getChild('Header').getChild('Security').getChild('Timestamp') is None:
+                raise Exception, 'WSDL policy required Timestamp, but Timestamp was not present in reply'
         pass
 
     def send(self, soapenv):
@@ -752,6 +759,9 @@ class SoapClient:
         sax = Parser()
         replyroot = sax.parse(string=reply)
         plugins.message.parsed(reply=replyroot)
+
+        # Encryption policy is enforced separately, because once the
+        # reply is processed, all encrypted data blocks have been decrypted
         self.enforce_encryption_policy_incoming(replyroot)
         if len(reply) > 0:
             if self.options.wsse:

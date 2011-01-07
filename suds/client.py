@@ -667,6 +667,12 @@ class SoapClient:
                     break
                 raise Exception, 'Specified transport is not allowed by WSDL policy'
 
+    def enforce_encryption_policy_incoming(self, doc):
+        pass
+        
+    def enforce_policy_incoming(self, doc):
+        pass
+
     def send(self, soapenv):
         """
         Send soap message.
@@ -746,10 +752,12 @@ class SoapClient:
         sax = Parser()
         replyroot = sax.parse(string=reply)
         plugins.message.parsed(reply=replyroot)
+        self.enforce_encryption_policy_incoming(replyroot)
         if len(reply) > 0:
             if self.options.wsse:
                 SecurityProcessor().processIncomingMessage(replyroot.getChild('Envelope'), self.options.wsse)
             reply, result = binding.get_reply(self.method, replyroot)
+            self.enforce_policy_incoming(reply)
             self.last_received(reply)
         else:
             result = None

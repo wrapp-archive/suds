@@ -260,7 +260,7 @@ class Definitions(WObject):
                 m.location = p.location
                 m.binding = Facade('binding')
                 op = binding.operation(name)
-                m.policy = self.build_policy(binding, op)
+                op.soap.input.policy = self.build_policy(binding, op.soap.input)
                 m.soap = op.soap
                 key = '/'.join((op.soap.style, op.soap.input.body.use))
                 m.binding.input = bindings.get(key)
@@ -269,7 +269,7 @@ class Definitions(WObject):
                 op = ptype.operation(name)
                 p.methods[name] = m
     
-    def build_policy(self, binding, op):
+    def build_policy(self, binding, msg):
         policy = wspolicy.Policy()
         policy.wsseEnabled = False
         policy.includeTimestamp = False
@@ -284,7 +284,7 @@ class Definitions(WObject):
         policy.encryptThenSign = False
         policy.signedParts = []
         policy.encryptedParts = []
-        for wsdl_policy in binding.policies + op.soap.input.policies:
+        for wsdl_policy in binding.policies + msg.policies:
             policy.addFromWsdl(wsdl_policy)
         return policy
     

@@ -617,7 +617,7 @@ class SoapClient:
         return result
     
     def enforce_policy_outgoing(self):
-        policy = self.method.policy
+        policy = self.method.soap.input.policy
         if self.options.overridepolicy is not None:
             policy = override(policy, self.options.overridepolicy)
         if policy.wsseEnabled:

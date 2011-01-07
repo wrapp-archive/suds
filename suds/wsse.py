@@ -263,7 +263,7 @@ class Signature(Object):
                 if element not in elements_to_digest:
                     elements_to_digest.append(element)
         
-        sig = xmlsec.signMessage(self.key, self.x509_issuer_serial, elements_to_digest, self.digest)
+        sig = xmlsec.signMessage(self.key, self.x509_issuer_serial, elements_to_digest, self.keyReference, self.digest)
         return sig
 
     def __init__(self, key, x509_issuer_serial):
@@ -272,6 +272,7 @@ class Signature(Object):
         self.x509_issuer_serial = x509_issuer_serial
         self.signed_parts = []
         self.digest = xmlsec.DIGEST_SHA1
+        self.keyReference = xmlsec.KEY_REFERENCE_ISSUER_SERIAL
 
 class Key(Object):
     def encryptMessage(self, env):
@@ -287,7 +288,7 @@ class Key(Object):
                 if element not in elements_to_encrypt:
                     elements_to_encrypt.append(element)
         
-        key = xmlsec.encryptMessage(self.cert, elements_to_encrypt, self.keyTransport, self.blockEncryption)
+        key = xmlsec.encryptMessage(self.cert, elements_to_encrypt, self.keyReference, self.keyTransport, self.blockEncryption)
         return key
         
     def __init__(self, cert):
@@ -296,3 +297,4 @@ class Key(Object):
         self.encrypted_parts = []
         self.blockEncryption = xmlsec.BLOCK_ENCRYPTION_AES128_CBC
         self.keyTransport = xmlsec.KEY_TRANSPORT_RSA_OAEP
+        self.keyReference = xmlsec.KEY_REFERENCE_ISSUER_SERIAL

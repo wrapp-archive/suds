@@ -23,7 +23,7 @@ class X509IssuerSerialKeypairReference:
 
 class X509FingerprintKeypairReference:
     def __init__(self, fingerprint, algorithm='sha1'):
-        self.fingerprint = fingerprint
+        self.fingerprint = self.normalize_fingerprint(fingerprint)
         self.algorithm = algorithm
     
     def getFingerprint(self):
@@ -37,6 +37,9 @@ class X509FingerprintKeypairReference:
     
     def __eq__(self, other):
         return self.fingerprint == other.getFingerprint() and self.algorithm == other.getAlgorithm()
+
+    def normalize_fingerprint(self, fingerprint):
+        return fingerprint.lower()
 
 class X509PemFileCertificate:
     def __init__(self, pem_file_name):

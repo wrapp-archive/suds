@@ -20,6 +20,7 @@ The I{xmlsec} module provides XML Encryption and XML Digital Signature functiona
 
 from suds.sax.element import Element
 from suds.sax.parser import Parser
+from suds.pki import *
 from base64 import b64encode,b64decode
 from M2Crypto import *
 import random
@@ -99,30 +100,40 @@ keyTransportProperties[KEY_TRANSPORT_RSA_OAEP] = {
     'uri': KEY_TRANSPORT_RSA_OAEP,
     'padding': RSA.pkcs1_oaep_padding}
 
+KEY_REFERENCE_ISSUER_SERIAL = 'IssuerSerial'
+KEY_REFERENCE_FINGERPRINT = 'Fingerprint'
+
 random = random.SystemRandom()
 
 def generate_unique_id(do_not_pass_this=[0]):
     do_not_pass_this[0] = do_not_pass_this[0] + 1
     return do_not_pass_this[0]
 
-def build_key_info(x509_issuer_serial):
+def build_key_info(cert, reference_type):
     key_info = Element("KeyInfo", ns=dsns)
     sec_token_ref = Element("SecurityTokenReference", ns=wssens)
-    x509_data = Element("X509Data", ns=dsns)
-    issuer_serial = Element("X509IssuerSerial", ns=dsns)
-    issuer_name = Element("X509IssuerName", ns=dsns)
-    issuer_name.setText(x509_issuer_serial.getX509IssuerSerial().getIssuer())
-    serial_number = Element("X509SerialNumber", ns=dsns)
-    serial_number.setText(x509_issuer_serial.getX509IssuerSerial().getSerial())
-    issuer_serial.append(issuer_name)
-    issuer_serial.append(serial_number)
-    x509_data.append(issuer_serial)
-    sec_token_ref.append(x509_data)
+    if reference_type == KEY_REFERENCE_ISSUER_SERIAL:
+        x509_data = Element("X509Data", ns=dsns)
+        issuer_serial = Element("X509IssuerSerial", ns=dsns)
+        issuer_name = Element("X509IssuerName", ns=dsns)
+        issuer_name.setText(cert.getX509IssuerSerial().getIssuer())
+        serial_number = Element("X509SerialNumber", ns=dsns)
+        serial_number.setText(cert.getX509IssuerSerial().getSerial())
+        issuer_serial.append(issuer_name)
+        issuer_serial.append(serial_number)
+        x509_data.append(issuer_serial)
+        sec_token_ref.append(x509_data)
+    elif reference_type == KEY_REFERENCE_FINGERPRINT:
+        key_ident = Element("KeyIdentifier", ns=wssens)
+        key_ident.set("EncodingType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary")
+        key_ident.set("ValueType", "http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1")
+        key_ident.setText(b64encode(cert.getSHA1Fingerprint().getFingerprint()))
+        sec_token_ref.append(key_ident)
     key_info.append(sec_token_ref)
     
     return key_info
 
-def signMessage(key, ref, elements_to_digest, digest_algorithm=DIGEST_SHA1):
+def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUER_SERIAL, digest_algorithm=DIGEST_SHA1):
     sig = Element("Signature", ns=dsns)
 
     signed_info = Element("SignedInfo", ns=dsns)
@@ -135,7 +146,7 @@ def signMessage(key, ref, elements_to_digest, digest_algorithm=DIGEST_SHA1):
 
     sig_value = Element("SignatureValue", ns=dsns)
 
-    key_info = build_key_info(ref)
+    key_info = build_key_info(ref, reference_type)
     
     sig.append(signed_info)
     sig.append(sig_value)
@@ -193,9 +204,16 @@ def verifyMessage(env, keystore):
             prefix_list = sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces").get("PrefixList").split(" ")
         signed_content = sig_elt.getChild("SignedInfo", ns=dsns).canonical(prefix_list)
         signature = b64decode(sig_elt.getChild("SignatureValue", ns=dsns).getText())
-        x509_issuer_serial_elt = sig_elt.getChild("KeyInfo").getChild("SecurityTokenReference").getChild("X509Data").getChild("X509IssuerSerial")
-        x509_issuer_serial = X509IssuerSerialKeypairReference(x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
-        pub_key = keystore.lookup(x509_issuer_serial).getEvpPublicKey()
+        sec_token_reference = sig_elt.getChild("KeyInfo").getChild("SecurityTokenReference")
+        if sec_token_reference.getChild("X509Data") is not None:
+            x509_issuer_serial_elt = sec_token_reference.getChild("X509Data").getChild("X509IssuerSerial")
+            reference = X509IssuerSerialKeypairReference(x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
+        elif sec_token_reference.getChild("KeyIdentifier") is not None and sec_token_reference.getChild("KeyIdentifier").get("ValueType") == 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1':
+            fingerprint = b64decode(sec_token_reference.getChild("KeyIdentifier").getText())
+            reference = X509FingerprintKeypairReference(fingerprint, 'sha1')
+        else:
+            raise Exception, 'Response contained unrecognized SecurityTokenReference'
+        pub_key = keystore.lookup(reference).getEvpPublicKey()
         pub_key.reset_context(md='sha1')
         pub_key.verify_init()
         pub_key.verify_update(signed_content.encode("utf-8"))
@@ -219,13 +237,13 @@ def verifyMessage(env, keystore):
             if hash.digest() <> enclosed_digest:
                 raise Exception, "digest for section with id " + signed_part_id[1:] + " failed verification"
 
-def encryptMessage(cert, elements_to_encrypt, key_transport=KEY_TRANSPORT_RSA_OAEP, block_encryption=BLOCK_ENCRYPTION_AES128_CBC):
+def encryptMessage(cert, elements_to_encrypt, reference_type=KEY_REFERENCE_ISSUER_SERIAL, key_transport=KEY_TRANSPORT_RSA_OAEP, block_encryption=BLOCK_ENCRYPTION_AES128_CBC):
     enc_key = Element("EncryptedKey", ns=wsencns)
     key_id = "EncKeyId-" + str(generate_unique_id())
     enc_key.set("Id", key_id)
     enc_method = Element("EncryptionMethod", ns=wsencns)
     enc_method.set("Algorithm", keyTransportProperties[key_transport]['uri'])
-    key_info = build_key_info(cert)
+    key_info = build_key_info(cert, reference_type)
     
     cipher_data = Element("CipherData", ns=wsencns)
     cipher_value = Element("CipherValue", ns=wsencns)
@@ -307,9 +325,16 @@ def decryptMessage(env, keystore):
         key_transport_method = key_elt.getChild("EncryptionMethod").get("Algorithm")
         key_transport_props = keyTransportProperties[key_transport_method]
         enc_key = b64decode(key_elt.getChild("CipherData").getChild("CipherValue").getText())
-        x509_issuer_serial_elt = key_elt.getChild("KeyInfo").getChild("SecurityTokenReference").getChild("X509Data").getChild("X509IssuerSerial")
-        x509_issuer_serial = X509IssuerSerialKeypairReference(x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
-        priv_key = keystore.lookup(x509_issuer_serial).getRsaPrivateKey()
+        sec_token_reference = key_elt.getChild("KeyInfo").getChild("SecurityTokenReference")
+        if sec_token_reference.getChild("X509Data") is not None:
+            x509_issuer_serial_elt = sec_token_reference.getChild("X509Data").getChild("X509IssuerSerial")
+            reference = X509IssuerSerialKeypairReference(x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
+        elif sec_token_reference.getChild("KeyIdentifier") is not None and sec_token_reference.getChild("KeyIdentifier").get("ValueType") == 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1':
+            fingerprint = b64decode(sec_token_reference.getChild("KeyIdentifier").getText())
+            reference = X509FingerprintKeypairReference(fingerprint, 'sha1')
+        else:
+            raise Exception, 'Response contained unrecognized SecurityTokenReference'
+        priv_key = keystore.lookup(reference).getRsaPrivateKey()
         sym_key = priv_key.private_decrypt(enc_key, key_transport_props['padding'])
         for data_block_id in [c.get("URI") for c in key_elt.getChild("ReferenceList").getChildren("DataReference")]:
             if not data_block_id[0] == "#":

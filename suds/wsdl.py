@@ -34,6 +34,7 @@ from suds.reader import DocumentReader, DefinitionsReader
 from suds.wsse import *
 from urlparse import urljoin
 import re, soaparray
+import wspolicy
 
 log = getLogger(__name__)
 
@@ -269,7 +270,7 @@ class Definitions(WObject):
                 p.methods[name] = m
     
     def build_policy(self, binding, op):
-        policy = Facade('policy')
+        policy = wspolicy.Policy()
         policy.wsseEnabled = False
         policy.includeTimestamp = False
         policy.addressing = False

@@ -43,6 +43,7 @@ from urlparse import urlparse
 from copy import deepcopy
 from suds.plugin import PluginContainer
 from logging import getLogger
+from suds.wspolicy import *
 
 log = getLogger(__name__)
 
@@ -617,6 +618,8 @@ class SoapClient:
     
     def enforce_policy_outgoing(self):
         policy = self.method.policy
+        if self.options.overridepolicy is not None:
+            policy = override(policy, self.options.overridepolicy)
         if policy.wsseEnabled:
             if not self.options.wsse:
                 self.options.wsse = Security()

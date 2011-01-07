@@ -18,7 +18,13 @@
 The I{wspolicy} module provides support for WS-Policy.
 """
 
-from suds.sudsobject import Object
+from suds.sudsobject import Object, merge
+
+def override(base_policy, override_policy):
+    new_policy = Policy()
+    merge(base_policy, new_policy)
+    merge(override_policy, new_policy)
+    return new_policy
 
 class Policy(Object):
     pass

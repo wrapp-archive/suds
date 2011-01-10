@@ -37,6 +37,9 @@ except ImportError:
 wssens = \
     ('wsse', 
      'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd')
+wsse11ns = \
+    ('wsse11', 
+     'http://docs.oasis-open.org/wss/oasis-wss-wsecurity-secext-1.1.xsd')
 wsuns = \
     ('wsu',
      'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
@@ -70,6 +73,7 @@ class Security(Object):
         self.includeTimestamp = True
         self.encryptThenSign = False
         self.headerLayout = HEADER_LAYOUT_LAX
+        self.wsse11 = False
         self.tokens = []
         self.signatures = []
         self.references = []
@@ -99,8 +103,10 @@ class SecurityProcessor:
         if wsse.encryptThenSign:
             xmlsec.verifyMessage(soapenv, wsse.keystore)
             xmlsec.decryptMessage(soapenv, wsse.keystore)
+            self.removeEncryptedHeaders(soapenv)
         else:
             xmlsec.decryptMessage(soapenv, wsse.keystore)
+            self.removeEncryptedHeaders(soapenv)
             xmlsec.verifyMessage(soapenv, wsse.keystore)
 
     def processOutgoingMessage(self, soapenv, wsse):
@@ -113,6 +119,15 @@ class SecurityProcessor:
             self.signMessage(soapenv, wsse)
             self.encryptMessage(soapenv, wsse)
     
+    def removeEncryptedHeaders(self, soapenv):
+        def removeEncryptedHeaders(elt):
+            if not elt.match("EncryptedHeader", ns=wsse11ns):
+                return
+            children = elt.detachChildren()
+            elt.parent.replaceChild(elt, children)
+
+        env.walk(removeEncryptedHeaders)
+        
     def signMessage(self, env, wsse):
         env.getChild('Header').getChild('Security').insert(reduce(lambda x,y: x + y.signMessage(env), wsse.signatures, []), self.insertPosition(wsse))
 
@@ -292,7 +307,7 @@ class Signature(Object):
         self.keyReference = xmlsec.KEY_REFERENCE_ISSUER_SERIAL
 
 class Key(Object):
-    def encryptMessage(self, env):
+    def encryptMessage(self, env, use_encrypted_header=False):
         elements_to_encrypt = []
         
         for elements_to_encrypt_func in self.encrypted_parts:
@@ -303,8 +318,15 @@ class Key(Object):
                 addl_elements = [addl_elements]
             for element in addl_elements:
                 if element not in elements_to_encrypt:
-                    elements_to_encrypt.append(element)
-        
+                    if element.parent.match('Header', ns=envns) and use_encrypted_header:
+                        dummy = Element('Dummy')
+                        element.parent.replaceChild(element, dummy)
+                        enc_hdr = Element('EncryptedHeader', ns=wsse11ns)
+                        enc_hdr.append(element)
+                        dummy.parent.replaceChild(dummy, enc_hdr)
+                    else:
+                        elements_to_encrypt.append(element)
+
         key = xmlsec.encryptMessage(self.cert, elements_to_encrypt, self.keyReference, self.keyTransport, self.blockEncryption)
         return key
         

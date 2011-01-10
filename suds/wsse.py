@@ -83,12 +83,12 @@ class Security(Object):
             self.encryptMessage(soapenv)
     
     def signMessage(self, env):
-        for s in self.signatures:
-            s.signMessage(env)
+        index = self.includeTimestamp and 1 or 0
+        env.getChild('Header').getChild('Security').insert([s.signMessage(env) for s in self.signatures], index)
 
     def encryptMessage(self, env):
-        for k in self.keys:
-            k.encryptMessage(env)
+        index = self.includeTimestamp and 1 or 0
+        env.getChild('Header').getChild('Security').insert([k.encryptMessage(env) for k in self.keys], index)
 
     def xml(self):
         """
@@ -250,7 +250,7 @@ class Signature(Object):
                     elements_to_digest.append(element)
         
         sig = xmlsec.signMessage(self.key, self.x509_issuer_serial, elements_to_digest, self.digest)
-        env.getChild('Header').getChild('Security').insert(sig, 1)
+        return sig
 
     def __init__(self, key, x509_issuer_serial):
         Object.__init__(self)
@@ -274,7 +274,7 @@ class Key(Object):
                     elements_to_encrypt.append(element)
         
         key = xmlsec.encryptMessage(self.cert, elements_to_encrypt, self.keyTransport, self.blockEncryption)
-        env.getChild('Header').getChild('Security').insert(key, 1)
+        return key
         
     def __init__(self, cert):
         Object.__init__(self)

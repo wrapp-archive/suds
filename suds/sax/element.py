@@ -346,7 +346,8 @@ class Element:
         @return: self
         @rtype: L{Element}
         """
-        objects = (objects,)
+        if not isinstance(objects, (list, tuple)):
+            objects = (objects,)
         for child in objects:
             if isinstance(child, Element):
                 self.children.insert(index, child)

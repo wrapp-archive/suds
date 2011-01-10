@@ -22,13 +22,9 @@ from logging import getLogger
 from suds import *
 from suds.sudsobject import Object
 from suds.sax.element import Element
-from suds.sax.parser import Parser
 from suds.sax.date import UTC
 from datetime import datetime, timedelta
-from base64 import b64encode,b64decode
-from M2Crypto import *
-import random
-import hashlib
+import xmlsec
 from suds.pki import *
 
 try:
@@ -38,100 +34,12 @@ except ImportError:
     from md5 import md5
 
 
-dsns = \
-    ('ds',
-     'http://www.w3.org/2000/09/xmldsig#')
 wssens = \
     ('wsse', 
      'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd')
 wsuns = \
     ('wsu',
      'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
-wsencns = \
-    ('wsenc',
-     'http://www.w3.org/2001/04/xmlenc#')
-
-BLOCK_ENCRYPTION_AES128_CBC = 'http://www.w3.org/2001/04/xmlenc#aes128-cbc'
-BLOCK_ENCRYPTION_AES192_CBC = 'http://www.w3.org/2001/04/xmlenc#aes192-cbc'
-BLOCK_ENCRYPTION_AES256_CBC = 'http://www.w3.org/2001/04/xmlenc#aes256-cbc'
-BLOCK_ENCRYPTION_3DES_CBC = 'http://www.w3.org/2001/04/xmlenc#tripledes-cbc'
-
-blockEncryptionProperties = dict()
-blockEncryptionProperties[BLOCK_ENCRYPTION_AES128_CBC] = {
-    'uri': BLOCK_ENCRYPTION_AES128_CBC,
-    'openssl_cipher': 'aes_128_cbc',
-    'key_size': 16,
-    'block_size': 16,
-    'iv_size': 16}
-blockEncryptionProperties[BLOCK_ENCRYPTION_AES192_CBC] = {
-    'uri': BLOCK_ENCRYPTION_AES192_CBC,
-    'openssl_cipher': 'aes_192_cbc',
-    'key_size': 24,
-    'block_size': 16,
-    'iv_size': 16}
-blockEncryptionProperties[BLOCK_ENCRYPTION_AES256_CBC] = {
-    'uri': BLOCK_ENCRYPTION_AES256_CBC,
-    'openssl_cipher': 'aes_256_cbc',
-    'key_size': 32,
-    'block_size': 16,
-    'iv_size': 16}
-blockEncryptionProperties[BLOCK_ENCRYPTION_3DES_CBC] =  {
-    'uri': BLOCK_ENCRYPTION_3DES_CBC,
-    'openssl_cipher': 'des_ede3_cbc',
-    'key_size': 24,
-    'block_size': 8,
-    'iv_size': 8}
-
-DIGEST_SHA1 = 'http://www.w3.org/2000/09/xmldsig#sha1'
-DIGEST_SHA256 = 'http://www.w3.org/2001/04/xmlenc#sha256'
-DIGEST_SHA512 = 'http://www.w3.org/2001/04/xmlenc#sha512'
-DIGEST_RIPEMD160 = 'http://www.w3.org/2001/04/xmlenc#ripemd160'
-
-digestProperties = dict()
-digestProperties[DIGEST_SHA1] = {
-    'uri': DIGEST_SHA1,
-    'hashlib_alg': 'sha1'}
-digestProperties[DIGEST_SHA256] = {
-    'uri': DIGEST_SHA256,
-    'hashlib_alg': 'sha256'}
-digestProperties[DIGEST_SHA512] = {
-    'uri': DIGEST_SHA512,
-    'hashlib_alg': 'sha512'}
-digestProperties[DIGEST_RIPEMD160] = {
-    'uri': DIGEST_RIPEMD160,
-    'hashlib_alg': 'ripemd160'}
-
-KEY_TRANSPORT_RSA_1_5 = 'http://www.w3.org/2001/04/xmlenc#rsa-1_5'
-KEY_TRANSPORT_RSA_OAEP = 'http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p'
-
-keyTransportProperties = dict()
-keyTransportProperties[KEY_TRANSPORT_RSA_1_5] = {
-    'uri': KEY_TRANSPORT_RSA_1_5,
-    'padding': RSA.pkcs1_padding}
-keyTransportProperties[KEY_TRANSPORT_RSA_OAEP] = {
-    'uri': KEY_TRANSPORT_RSA_OAEP,
-    'padding': RSA.pkcs1_oaep_padding}
-
-def generate_unique_id(do_not_pass_this=[0]):
-    do_not_pass_this[0] = do_not_pass_this[0] + 1
-    return do_not_pass_this[0]
-
-def build_key_info(x509_issuer_serial):
-    key_info = Element("KeyInfo", ns=dsns)
-    sec_token_ref = Element("SecurityTokenReference", ns=wssens)
-    x509_data = Element("X509Data", ns=dsns)
-    issuer_serial = Element("X509IssuerSerial", ns=dsns)
-    issuer_name = Element("X509IssuerName", ns=dsns)
-    issuer_name.setText(x509_issuer_serial.getX509IssuerSerial()[0])
-    serial_number = Element("X509SerialNumber", ns=dsns)
-    serial_number.setText(x509_issuer_serial.getX509IssuerSerial()[1])
-    issuer_serial.append(issuer_name)
-    issuer_serial.append(serial_number)
-    x509_data.append(issuer_serial)
-    sec_token_ref.append(x509_data)
-    key_info.append(sec_token_ref)
-    
-    return key_info
 
 class Security(Object):
     """
@@ -160,11 +68,11 @@ class Security(Object):
 
     def processIncomingMessage(self, soapenv):
         if self.encryptThenSign:
-            self.verifyMessage(soapenv)
-            self.decryptMessage(soapenv)
+            xmlsec.verifyMessage(soapenv, self.keystore)
+            xmlsec.decryptMessage(soapenv, self.keystore)
         else:
-            self.decryptMessage(soapenv)
-            self.verifyMessage(soapenv)
+            xmlsec.decryptMessage(soapenv, self.keystore)
+            xmlsec.verifyMessage(soapenv, self.keystore)
 
     def processOutgoingMessage(self, soapenv):
         if self.encryptThenSign:
@@ -182,82 +90,6 @@ class Security(Object):
         for k in self.keys:
             k.encryptMessage(env)
 
-    def decryptMessage(self, env):
-        enc_data_blocks = dict()
-        
-        def collectEncryptedDataBlock(elt):
-            if not elt.match("EncryptedData", ns=wsencns):
-                return
-            
-            enc_data_blocks[elt.get("Id")] = elt
-
-        env.walk(collectEncryptedDataBlock)
-        for key_elt in env.getChild("Header").getChild("Security").getChildren("EncryptedKey", ns=wsencns):
-            key_transport_method = key_elt.getChild("EncryptionMethod").get("Algorithm")
-            key_transport_props = keyTransportProperties[key_transport_method]
-            enc_key = b64decode(key_elt.getChild("CipherData").getChild("CipherValue").getText())
-            x509_issuer_serial_elt = key_elt.getChild("KeyInfo").getChild("SecurityTokenReference").getChild("X509Data").getChild("X509IssuerSerial")
-            x509_issuer_serial = (x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
-            priv_key = self.keystore.lookupByX509IssuerSerial(x509_issuer_serial).getRsaPrivateKey()
-            sym_key = priv_key.private_decrypt(enc_key, key_transport_props['padding'])
-            for data_block_id in [c.get("URI") for c in key_elt.getChild("ReferenceList").getChildren("DataReference")]:
-                if not data_block_id[0] == "#":
-                    raise Exception, "Cannot handle non-local data references"
-                data_block = enc_data_blocks[data_block_id[1:]]
-                block_encryption_props = blockEncryptionProperties[data_block.getChild("EncryptionMethod").get("Algorithm")]
-                enc_content = b64decode(data_block.getChild("CipherData").getChild("CipherValue").getText())
-                iv = enc_content[:block_encryption_props['iv_size']]
-                enc_content = enc_content[block_encryption_props['iv_size']:]
-                cipher = EVP.Cipher(alg=block_encryption_props['openssl_cipher'], key=sym_key, iv=iv, op=0, padding=0)
-                content = cipher.update(enc_content)
-                content = content + cipher.final()
-                content = content[:-ord(content[-1])]
-                sax = Parser()
-                decrypted_element = sax.parse(string=content)
-                data_block.parent.replaceChild(data_block, decrypted_element.getChildren())
-    
-    def verifyMessage(self, env):
-        signed_data_blocks = dict()
-        
-        def collectSignedDataBlock(elt):
-            if not elt.get("Id", ns=wsuns):
-                return
-            
-            signed_data_blocks[elt.get("Id", ns=wsuns)] = elt
-
-        env.walk(collectSignedDataBlock)
-        for sig_elt in env.getChild("Header").getChild("Security").getChildren("Signature", ns=dsns):
-            prefix_list = []
-            if sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").get("Algorithm") == "http://www.w3.org/2001/10/xml-exc-c14n#":
-                prefix_list = sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces").get("PrefixList").split(" ")
-            signed_content = sig_elt.getChild("SignedInfo", ns=dsns).canonical(prefix_list)
-            signature = b64decode(sig_elt.getChild("SignatureValue", ns=dsns).getText())
-            x509_issuer_serial_elt = sig_elt.getChild("KeyInfo").getChild("SecurityTokenReference").getChild("X509Data").getChild("X509IssuerSerial")
-            x509_issuer_serial = (x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
-            pub_key = self.keystore.lookupByX509IssuerSerial(x509_issuer_serial).getEvpPublicKey()
-            pub_key.reset_context(md='sha1')
-            pub_key.verify_init()
-            pub_key.verify_update(signed_content.encode("utf-8"))
-            if pub_key.verify_final(signature) == 0:
-                raise Exception, "signature failed verification"
-            for signed_part in sig_elt.getChild("SignedInfo", ns=dsns).getChildren("Reference", ns=dsns):
-                enclosed_digest = b64decode(signed_part.getChild("DigestValue", ns=dsns).getText())
-                signed_part_id = signed_part.get("URI")
-                    
-                if not signed_part_id[0] == "#":
-                    raise Exception, "Cannot handle non-local data references"
-                prefix_list = []
-                for transform in signed_part.getChild("Transforms", ns=dsns).getChildren("Transform", ns=dsns):
-                    if transform.get("Algorithm") == "http://www.w3.org/2001/10/xml-exc-c14n#":
-                        prefix_list = transform.getChild("InclusiveNamespaces").get("PrefixList").split(" ")
-                element_digested = signed_data_blocks[signed_part_id[1:]]
-                element_content = element_digested.canonical(prefix_list)
-                digest_props = digestProperties[signed_part.getChild("DigestMethod").get("Algorithm")]
-                hash = hashlib.new(digest_props['hashlib_alg'])
-                hash.update(element_content)
-                if hash.digest() <> enclosed_digest:
-                    raise Exception, "digest for section with id " + signed_part_id[1:] + " failed verification"
-
     def xml(self):
         """
         Get xml representation of the object.
@@ -270,16 +102,6 @@ class Security(Object):
             root.append(Timestamp().xml())
         for t in self.tokens:
             root.append(t.xml())
-        if self.encryptThenSign:
-            for s in self.signatures:
-                root.append(s.xml())            
-            for k in self.keys:
-                root.append(k.xml())
-        else:
-            for k in self.keys:
-                root.append(k.xml())
-            for s in self.signatures:
-                root.append(s.xml())
         return root
 
 class Token(Object):
@@ -417,7 +239,7 @@ class Signature(Object):
     def signMessage(self, env):
         elements_to_digest = []
         
-        for elements_to_digest_func in self.digest_elements:
+        for elements_to_digest_func in self.signed_parts:
             addl_elements = elements_to_digest_func(env)
             if addl_elements is None:
                 continue
@@ -427,80 +249,21 @@ class Signature(Object):
                 if element not in elements_to_digest:
                     elements_to_digest.append(element)
         
-        for element_to_digest in elements_to_digest:
-            reference = Element("Reference", ns=dsns)
-            transforms = Element("Transforms", ns=dsns)
-            transform = Element("Transform", ns=dsns)
-            transform.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
-            transforms.append(transform)
-            digest_method = Element("DigestMethod", ns=dsns)
-            digest_method.set("Algorithm", digestProperties[self.digest]['uri'])
-            digest_value = Element("DigestValue", ns=dsns)
-            reference.append(transforms)
-            reference.append(digest_method)
-            reference.append(digest_value)
-            self.signed_info.append(reference)        
-
-            if element_to_digest.get('wsu:Id'):
-                element_id = element_to_digest.get('wsu:Id')
-            else:
-                element_id = "id-" + str(generate_unique_id())
-                element_to_digest.set('wsu:Id', element_id)
-            reference.set("URI", "#" + element_id)
-            element_content = element_to_digest.canonical()
-            digest_props = digestProperties[self.digest]
-            hash = hashlib.new(digest_props['hashlib_alg'])
-            hash.update(element_content)
-            digest_value.setText(b64encode(hash.digest()))
-
-        element_to_sign = self.signed_info
-        element_content = element_to_sign.canonical()
-        priv_key = self.key.getEvpPrivateKey()
-        priv_key.sign_init()
-        priv_key.sign_update(element_content.encode("utf-8"))
-        signed_digest = priv_key.sign_final()
-        self.sig_value.setText(b64encode(signed_digest))
-    
-    def xml(self):
-        self.digest_elements = []
-        self.signature_elements = []
-        
-        root = Element("Signature", ns=dsns)
-
-        self.signed_info = Element("SignedInfo", ns=dsns)
-        canon_method = Element("CanonicalizationMethod", ns=dsns)
-        canon_method.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
-        sig_method = Element("SignatureMethod", ns=dsns)
-        sig_method.set("Algorithm", "http://www.w3.org/2000/09/xmldsig#rsa-sha1")
-        self.signed_info.append(canon_method)
-        self.signed_info.append(sig_method)
-
-        for signed_part_func in self.signed_parts:
-            self.digest_elements = self.signed_parts
-        
-        self.sig_value = Element("SignatureValue", ns=dsns)
-
-        key_info = build_key_info(self.x509_issuer_serial)
-        
-        root.append(self.signed_info)
-        root.append(self.sig_value)
-        root.append(key_info)
-        return root
+        sig = xmlsec.signMessage(self.key, self.x509_issuer_serial, elements_to_digest, self.digest)
+        env.getChild('Header').getChild('Security').insert(sig, 1)
 
     def __init__(self, key, x509_issuer_serial):
         Object.__init__(self)
-        self.digest_elements = None
-        self.signature_elements = None
         self.key = key
         self.x509_issuer_serial = x509_issuer_serial
         self.signed_parts = []
-        self.digest = DIGEST_SHA1
+        self.digest = xmlsec.DIGEST_SHA1
 
 class Key(Object):
     def encryptMessage(self, env):
         elements_to_encrypt = []
         
-        for elements_to_encrypt_func in self.encrypt_elements:
+        for elements_to_encrypt_func in self.encrypted_parts:
             addl_elements = elements_to_encrypt_func(env)
             if addl_elements is None:
                 continue
@@ -510,86 +273,12 @@ class Key(Object):
                 if element not in elements_to_encrypt:
                     elements_to_encrypt.append(element)
         
-        for (element_to_encrypt, type) in elements_to_encrypt:
-            reference = Element("DataReference", ns=wsencns)
-            id = "EncDataId-" + str(generate_unique_id())
-            reference.set("URI", '#' + id)
-            self.reference_list.append(reference)
-
-            element_content = element_to_encrypt.canonical()
-            if type == 'Content':
-                element_content = element_content[element_content.index(">") + 1:element_content.rindex("<")]
-            enc_data = Element("EncryptedData", ns=wsencns)
-            enc_data.set("Id", id)
-            enc_data.set("Type", "http://www.w3.org/2001/04/xmlenc#" + type)
-            
-            block_encryption_props = blockEncryptionProperties[self.blockEncryption]
-            enc_method = Element("EncryptionMethod", ns=wsencns)
-            enc_method.set("Algorithm", block_encryption_props['uri'])
-            
-            key_info = Element("KeyInfo", ns=dsns)
-            sec_token_ref = Element("SecurityTokenReference", ns=wssens)
-            wsse_reference = Element("Reference", ns=wssens)
-            wsse_reference.set("URI", "#" + self.id)
-            sec_token_ref.append(wsse_reference)
-            key_info.append(sec_token_ref)
-            
-            cipher_data = Element("CipherData", ns=wsencns)
-            cipher_value = Element("CipherValue", ns=wsencns)
-            cipher = EVP.Cipher(alg=blockEncryptionProperties[self.blockEncryption]['openssl_cipher'], key=self.sym_key, iv=self.iv, op=1, padding=0)
-            pad_bytes = block_encryption_props['block_size'] - len(element_content) % block_encryption_props['block_size']
-            element_content = element_content + ' ' * (pad_bytes - 1) + chr(pad_bytes)
-            enc_content = cipher.update(element_content.encode("utf-8"))
-            enc_content = enc_content + cipher.final()
-            enc_content = self.iv + enc_content
-            cipher_value.setText(b64encode(enc_content))
-            cipher_data.append(cipher_value)
-
-            enc_data.append(enc_method)
-            enc_data.append(key_info)
-            enc_data.append(cipher_data)
-            
-            if type == 'Element':
-                element_to_encrypt.parent.replaceChild(element_to_encrypt, enc_data)
-            elif type == 'Content':
-                element_to_encrypt.setText('')
-                for child in element_to_encrypt.children:
-                    element_to_encrypt.remove(child)
-                element_to_encrypt.append(enc_data)
-
-    def xml(self):
-        self.encrypt_elements = []
-        
-        root = Element("EncryptedKey", ns=wsencns)
-        root.set("Id", self.id)
-        enc_method = Element("EncryptionMethod", ns=wsencns)
-        enc_method.set("Algorithm", keyTransportProperties[self.keyTransport]['uri'])
-        key_info = build_key_info(self.cert)
-        
-        cipher_data = Element("CipherData", ns=wsencns)
-        cipher_value = Element("CipherValue", ns=wsencns)
-        block_encryption_props = blockEncryptionProperties[self.blockEncryption]
-        self.sym_key = bytearray([self.random.getrandbits(8) for i in range(0, block_encryption_props['key_size'])])
-        self.iv = bytearray([self.random.getrandbits(8) for i in range(0, block_encryption_props['iv_size'])])
-        pub_key = self.cert.getRsaPublicKey()
-        enc_sym_key = pub_key.public_encrypt(self.sym_key, keyTransportProperties[self.keyTransport]['padding'])
-        cipher_value.setText(b64encode(enc_sym_key))
-        cipher_data.append(cipher_value)
-        
-        self.reference_list = Element("ReferenceList", ns=wsencns)
-        self.encrypt_elements = self.encrypted_parts
-        
-        root.append(enc_method)
-        root.append(key_info)
-        root.append(cipher_data)
-        root.append(self.reference_list)
-        return root
+        key = xmlsec.encryptMessage(self.cert, elements_to_encrypt, self.keyTransport, self.blockEncryption)
+        env.getChild('Header').getChild('Security').insert(key, 1)
         
     def __init__(self, cert):
         Object.__init__(self)
         self.cert = cert
-        self.random = random.SystemRandom()
-        self.id = "EncKeyId-" + str(generate_unique_id())
         self.encrypted_parts = []
-        self.blockEncryption = BLOCK_ENCRYPTION_AES128_CBC
-        self.keyTransport = KEY_TRANSPORT_RSA_OAEP
+        self.blockEncryption = xmlsec.BLOCK_ENCRYPTION_AES128_CBC
+        self.keyTransport = xmlsec.KEY_TRANSPORT_RSA_OAEP

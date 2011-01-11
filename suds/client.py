@@ -641,10 +641,14 @@ class SoapClient:
             if policy.keyTransport is not None:
                 for key in wsse.keys:
                     key.keyTransport = policy.keyTransport
-            for part in policy.signedParts:
-                def create_signed_header_func(ns, name):
-                    return lambda env: env.getChild("Header").getChildren(name, ns=(None, ns))
+
+            def create_signed_header_func(ns, name):
+                return lambda env: env.getChild("Header").getChildren(name, ns=(None, ns))
                     
+            def create_encrypted_header_func(ns, name):
+                return lambda env: (env.getChild("Header").getChildren(name, ns=(None, ns)), 'Element')
+                    
+            for part in policy.signedParts:
                 if part[0] == 'body':
                     wsse.signatures[0].signed_parts.append(lambda env: env.getChild("Body"))
                 elif part[0] == 'header':
@@ -653,8 +657,7 @@ class SoapClient:
                 if part[0] == 'body':
                     wsse.keys[0].encrypted_parts.append(lambda env: (env.getChild("Body"), "Content"))
                 elif part[0] == 'header':
-                    # Encrypted headers require special handling, which we don't currently support
-                    pass
+                    wsse.keys[0].encrypted_parts.append(create_encrypted_header_func(part[1], part[2]))
                 elif part[0] == 'signature':
                     wsse.keys[0].encrypted_parts.append(lambda env: (env.getChild('Header').getChild('Security').getChild('Signature'), 'Element'))
             if policy.signatureRequired and policy.includeTimestamp:

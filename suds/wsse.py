@@ -83,11 +83,11 @@ class Security(Object):
             self.encryptMessage(soapenv)
     
     def signMessage(self, env):
-        index = self.includeTimestamp and 1 or 0
+        index = len(self.tokens) + self.includeTimestamp and 1 or 0
         env.getChild('Header').getChild('Security').insert([s.signMessage(env) for s in self.signatures], index)
 
     def encryptMessage(self, env):
-        index = self.includeTimestamp and 1 or 0
+        index = len(self.tokens) + self.includeTimestamp and 1 or 0
         env.getChild('Header').getChild('Security').insert([k.encryptMessage(env) for k in self.keys], index)
 
     def xml(self):

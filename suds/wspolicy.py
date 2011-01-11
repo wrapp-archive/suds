@@ -103,4 +103,10 @@ class Policy(Object):
                 else:
                     # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
                     pass
+        if wsdl_policy.root.getChild("Wss10") is not None:
+            self.wsse11 = False
+        elif wsdl_policy.root.getChild("Wss11") is not None:
+            self.wsse11 = True
+        else:
+            self.wsse11 = None
 

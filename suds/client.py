@@ -641,7 +641,8 @@ class SoapClient:
             if policy.keyTransport is not None:
                 for key in wsse.keys:
                     key.keyTransport = policy.keyTransport
-
+            if policy.wsse11 is not None:
+                wsse.wsse11 = policy.wsse11 
             def create_signed_header_func(ns, name):
                 return lambda env: env.getChild("Header").getChildren(name, ns=(None, ns))
                     

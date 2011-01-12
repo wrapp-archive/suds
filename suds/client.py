@@ -628,6 +628,8 @@ class SoapClient:
                 raise Exception, 'WSDL policy requires username token, but no username token was specified in Client'
             if policy.signatureRequired and len(wsse.signatures) == 0:
                 raise Exception, 'WSDL policy requires signed message, but no signature was specified in Client'
+            if policy.encryptionRequired and len(wsse.keys) == 0:
+                raise Exception, 'WSDL policy requires encrypted message, but no encryption keys were specified in Client'
             if policy.clientCertRequired and not isinstance(self.options.transport, HttpsClientCertAuthenticated):
                 raise Exception, 'WSDL policy requires client certificate authentication with HTTPS, but HttpsClientCertAuthenticated transport was not specified in Client'
             wsse.includeTimestamp = policy.includeTimestamp

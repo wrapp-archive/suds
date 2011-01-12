@@ -282,6 +282,7 @@ class Definitions(WObject):
         policy.keyTransport = None
         policy.usernameRequired = False
         policy.signatureRequired = False
+        policy.encryptionRequired = False
         policy.encryptThenSign = False
         policy.signedParts = []
         policy.encryptedParts = []

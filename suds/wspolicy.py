@@ -53,6 +53,9 @@ class Policy(Object):
                 token = wsdl_policy.binding.getChild("InitiatorToken")
                 if token.getChild("Policy").getChild("X509Token") is not None:
                     self.signatureRequired = True
+            if (wsdl_policy.binding.getChild("InitiatorToken") is not None and wsdl_policy.binding.getChild("RecipientToken") is not None) or \
+                wsdl_policy.binding.getChild("ProtectionToken") is not None:
+                self.encryptionRequired = True
             if self.blockEncryption is None:
                 algorithm_suite = wsdl_policy.binding.getChild("AlgorithmSuite")
                 if algorithm_suite is not None:

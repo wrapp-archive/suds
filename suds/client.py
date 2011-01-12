@@ -620,71 +620,21 @@ class SoapClient:
         policy = self.method.soap.input.policy
         if self.options.overridepolicy is not None:
             policy = override(policy, self.options.overridepolicy)
-        if policy.wsseEnabled:
-            if not self.options.wsse:
-                self.options.wsse = Security()
-            wsse = self.options.wsse
-            if policy.usernameRequired and len(wsse.tokens) == 0:
-                raise Exception, 'WSDL policy requires username token, but no username token was specified in Client'
-            if policy.signatureRequired and len(wsse.signatures) == 0:
-                raise Exception, 'WSDL policy requires signed message, but no signature was specified in Client'
-            if policy.encryptionRequired and len(wsse.keys) == 0:
-                raise Exception, 'WSDL policy requires encrypted message, but no encryption keys were specified in Client'
-            if policy.clientCertRequired and not isinstance(self.options.transport, HttpsClientCertAuthenticated):
-                raise Exception, 'WSDL policy requires client certificate authentication with HTTPS, but HttpsClientCertAuthenticated transport was not specified in Client'
-            wsse.includeTimestamp = policy.includeTimestamp
-            wsse.encryptThenSign = policy.encryptThenSign
-            if policy.digestAlgorithm is not None:
-                for sig in wsse.signatures:
-                    sig.digest = policy.digestAlgorithm
-            if policy.blockEncryption is not None:
-                for key in wsse.keys:
-                    key.blockEncryption = policy.blockEncryption
-            if policy.keyTransport is not None:
-                for key in wsse.keys:
-                    key.keyTransport = policy.keyTransport
-            if policy.wsse11 is not None:
-                wsse.wsse11 = policy.wsse11 
-            def create_signed_header_func(ns, name):
-                return lambda env: env.getChild("Header").getChildren(name, ns=(None, ns))
-                    
-            def create_encrypted_header_func(ns, name):
-                return lambda env: (env.getChild("Header").getChildren(name, ns=(None, ns)), 'Element')
-                    
-            for part in policy.signedParts:
-                if part[0] == 'body':
-                    wsse.signatures[0].signed_parts.append(lambda env: env.getChild("Body"))
-                elif part[0] == 'header':
-                    wsse.signatures[0].signed_parts.append(create_signed_header_func(part[1], part[2]))
-            for part in policy.encryptedParts:
-                if part[0] == 'body':
-                    wsse.keys[0].encrypted_parts.append(lambda env: (env.getChild("Body"), "Content"))
-                elif part[0] == 'header':
-                    wsse.keys[0].encrypted_parts.append(create_encrypted_header_func(part[1], part[2]))
-                elif part[0] == 'signature':
-                    wsse.keys[0].encrypted_parts.append(lambda env: (env.getChild('Header').getChild('Security').getChild('Signature'), 'Element'))
-            if policy.signatureRequired and policy.includeTimestamp:
-                wsse.signatures[0].signed_parts.append(lambda env: env.getChild("Header").getChild("Security").getChild("Timestamp"))
-        if policy.addressing is not None:
-            self.options.wsaddr = policy.addressing
-        if policy.requiredTransports is not None:
-            for transport_scheme in policy.requiredTransports:
-                if transport_scheme == self.location()[:self.location().find(':')]:
-                    break
-                raise Exception, 'Specified transport is not allowed by WSDL policy'
+        policy.enforceOptions(self.options)
 
     def enforce_encryption_policy_incoming(self, doc):
-        pass
+        env = doc.getChild('Envelope')
+        policy = self.method.soap.output.policy
+        if self.options.overridepolicy is not None:
+            policy = override(policy, self.options.overridepolicy)
+        policy.enforceMessagePreSecurity(env)
         
     def enforce_policy_incoming(self, doc):
         env = doc.getChild('Envelope')
         policy = self.method.soap.output.policy
         if self.options.overridepolicy is not None:
             policy = override(policy, self.options.overridepolicy)
-        if policy.includeTimestamp:
-            if env.getChild('Header') is None or env.getChild('Header').getChild('Security') is None or env.getChild('Header').getChild('Security').getChild('Timestamp') is None:
-                raise Exception, 'WSDL policy required Timestamp, but Timestamp was not present in reply'
-        pass
+        policy.enforceMessagePostSecurity(env)
 
     def send(self, soapenv):
         """

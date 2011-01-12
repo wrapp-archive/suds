@@ -120,11 +120,6 @@ class Binding:
         body = self.body(content)
         env = self.envelope(header, body)
         if self.options().prefixes:
-            #body.normalizePrefixes()
-            wsse = self.options().wsse
-            if wsse is not None:
-                env.addPrefix('wsu', 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
-                wsse.processOutgoingMessage(env)
             env.promotePrefixes()
         else:
             env.refitPrefixes()
@@ -144,8 +139,6 @@ class Binding:
         @rtype: tuple ( L{Element}, L{Object} )
         """
         soapenv = reply.getChild('Envelope')
-        if self.options().wsse:
-            self.options().wsse.processIncomingMessage(soapenv)
         soapenv.promotePrefixes()
         soapbody = soapenv.getChild('Body')
         self.detect_fault(soapbody)
@@ -357,9 +350,6 @@ class Binding:
         """
         n = 0
         content = []
-        wsse = self.options().wsse
-        if wsse is not None:
-            content.append(wsse.xml())
         if self.options().wsaddr:
             content.append(self.action(method))
             content.append(self.messageid())

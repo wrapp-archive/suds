@@ -66,30 +66,6 @@ class Security(Object):
         self.keys = []
         self.keystore = Keystore()
 
-    def processIncomingMessage(self, soapenv):
-        if self.encryptThenSign:
-            xmlsec.verifyMessage(soapenv, self.keystore)
-            xmlsec.decryptMessage(soapenv, self.keystore)
-        else:
-            xmlsec.decryptMessage(soapenv, self.keystore)
-            xmlsec.verifyMessage(soapenv, self.keystore)
-
-    def processOutgoingMessage(self, soapenv):
-        if self.encryptThenSign:
-            self.encryptMessage(soapenv)
-            self.signMessage(soapenv)
-        else:
-            self.signMessage(soapenv)
-            self.encryptMessage(soapenv)
-    
-    def signMessage(self, env):
-        index = len(self.tokens) + self.includeTimestamp and 1 or 0
-        env.getChild('Header').getChild('Security').insert([s.signMessage(env) for s in self.signatures], index)
-
-    def encryptMessage(self, env):
-        index = len(self.tokens) + self.includeTimestamp and 1 or 0
-        env.getChild('Header').getChild('Security').insert([k.encryptMessage(env) for k in self.keys], index)
-
     def xml(self):
         """
         Get xml representation of the object.
@@ -103,6 +79,33 @@ class Security(Object):
         for t in self.tokens:
             root.append(t.xml())
         return root
+
+class SecurityProcessor:
+    def processIncomingMessage(self, soapenv, wsse):
+        if wsse.encryptThenSign:
+            xmlsec.verifyMessage(soapenv, wsse.keystore)
+            xmlsec.decryptMessage(soapenv, wsse.keystore)
+        else:
+            xmlsec.decryptMessage(soapenv, wsse.keystore)
+            xmlsec.verifyMessage(soapenv, wsse.keystore)
+
+    def processOutgoingMessage(self, soapenv, wsse):
+        soapenv.addPrefix('wsu', 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
+        soapenv.getChild('Header').insert(wsse.xml(), 0)
+        if wsse.encryptThenSign:
+            self.encryptMessage(soapenv, wsse)
+            self.signMessage(soapenv, wsse)
+        else:
+            self.signMessage(soapenv, wsse)
+            self.encryptMessage(soapenv, wsse)
+    
+    def signMessage(self, env, wsse):
+        index = len(wsse.tokens) + wsse.includeTimestamp and 1 or 0
+        env.getChild('Header').getChild('Security').insert([s.signMessage(env) for s in wsse.signatures], index)
+
+    def encryptMessage(self, env, wsse):
+        index = len(wsse.tokens) + wsse.includeTimestamp and 1 or 0
+        env.getChild('Header').getChild('Security').insert([k.encryptMessage(env) for k in wsse.keys], index)
 
 class Token(Object):
     """ I{Abstract} security token. """

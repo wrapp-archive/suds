@@ -38,6 +38,7 @@ from suds.sax.document import Document
 from suds.sax.parser import Parser
 from suds.options import Options
 from suds.properties import Unskin
+from suds.wsse import SecurityProcessor
 from urlparse import urlparse
 from copy import deepcopy
 from suds.plugin import PluginContainer
@@ -592,14 +593,17 @@ class SoapClient:
         timer.start()
         result = None
         binding = self.method.binding.input
-        soapenv = binding.get_message(self.method, args, kwargs)
+        soapdoc = binding.get_message(self.method, args, kwargs)
+        if self.options.wsse is not None:
+            env = soapdoc.getChild('Envelope')
+            SecurityProcessor().processOutgoingMessage(env, self.options.wsse)
         timer.stop()
         metrics.log.debug(
                 "message for '%s' created: %s",
                 self.method.name,
                 timer)
         timer.start()
-        result = self.send(soapenv)
+        result = self.send(soapdoc)
         timer.stop()
         metrics.log.debug(
                 "method '%s' invoked: %s",
@@ -687,6 +691,8 @@ class SoapClient:
         replyroot = sax.parse(string=reply)
         plugins.message.parsed(reply=replyroot)
         if len(reply) > 0:
+            if self.options.wsse:
+                SecurityProcessor().processIncomingMessage(replyroot.getChild('Envelope'), self.options.wsse)
             reply, result = binding.get_reply(self.method, replyroot)
             self.last_received(reply)
         else:

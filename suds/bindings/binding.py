@@ -34,15 +34,12 @@ from suds.xsd.query import TypeQuery, ElementQuery
 from suds.xsd.sxbasic import Element as SchemaElement
 from suds.options import Options
 from suds.plugin import PluginContainer
+from suds.wsaddr import Action, MessageID
 from copy import deepcopy 
-import random
 
 log = getLogger(__name__)
 
 envns = ('SOAP-ENV', 'http://schemas.xmlsoap.org/soap/envelope/')
-wsa = ('wsa', 'http://www.w3.org/2005/08/addressing')
-
-random = random.SystemRandom()
 
 class Binding:
     """
@@ -351,8 +348,8 @@ class Binding:
         n = 0
         content = []
         if self.options().wsaddr:
-            content.append(self.action(method))
-            content.append(self.messageid())
+            content.append(Action(method).xml())
+            content.append(MessageID().xml())
         headers = self.options().soapheaders
         if not isinstance(headers, (tuple,list,dict)):
             headers = (headers,)
@@ -489,17 +486,6 @@ class Binding:
             result.append(rt)
         return result
 
-    def action(self, method):
-        action = Element('Action', ns=wsa)
-        action.setText(method.soap.action)
-        return action
-
-    def messageid(self):
-        messageid = Element('MessageID', ns=wsa)
-        messageid_bytes = bytearray([random.getrandbits(8) for i in range(0, 16)])
-        messageid.setText("mid:" + ''.join(["%02X" % x for x in messageid_bytes]))
-        return messageid
-        
 class PartElement(SchemaElement):
     """
     A part used to represent a message part when the part

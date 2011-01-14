@@ -44,6 +44,7 @@ wsse11ns = \
 wsuns = \
     ('wsu',
      'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
+envns = ('SOAP-ENV', 'http://schemas.xmlsoap.org/soap/envelope/')
 
 def generate_unique_id(do_not_pass_this=[0]):
     do_not_pass_this[0] = do_not_pass_this[0] + 1
@@ -84,7 +85,7 @@ class SecurityProcessor:
         soapenv.walk(removeEncryptedHeaders)
         
     def signMessage(self, env, wsse):
-        env.getChild('Header').getChild('Security').insert(reduce(lambda x,y: x + y.signMessage(env), wsse.signatures, []), self.insertPosition(wsse))
+        env.getChild('Header').getChild('Security').insert(reduce(lambda x,y: x + y.signMessage(env, wsse.signOnlyEntireHeadersAndBody), wsse.signatures, []), self.insertPosition(wsse))
 
     def encryptMessage(self, env, wsse):
         env.getChild('Header').getChild('Security').insert([k.encryptMessage(env, wsse.wsse11) for k in wsse.keys], self.insertPosition(wsse))
@@ -240,7 +241,7 @@ class Timestamp(Token):
         return root
 
 class Signature(Object):
-    def signMessage(self, env):
+    def signMessage(self, env, signOnlyEntireHeadersAndBody):
         elements_to_digest = []
         
         for elements_to_digest_func in self.signed_parts:
@@ -252,6 +253,9 @@ class Signature(Object):
             for element in addl_elements:
                 if element not in elements_to_digest:
                     elements_to_digest.append(element)
+
+        if signOnlyEntireHeadersAndBody:
+            self.verifyOnlyEntireHeadersAndBody(elements_to_digest)
 
         bst_id = None
         bst = None
@@ -268,6 +272,12 @@ class Signature(Object):
             return [bst, sig]
         else:
             return [sig]
+
+    def verifyOnlyEntireHeadersAndBody(self, elements_to_digest):
+        for element in elements_to_digest:
+            if element.match('Body', ns=envns) or element.parent.match('Header', ns=envns) or element.parent.match('Security', ns=wssens):
+                continue
+            raise Exception, 'A descendant of a header or the body was signed, but only entire headers and body were permitted to be signed'
 
     def __init__(self, key, x509_issuer_serial):
         Object.__init__(self)

@@ -38,6 +38,8 @@ class Policy(Object):
                 self.encryptedParts.append(('signature',))
             if wsdl_policy.binding.getChild("EncryptBeforeSigning") is not None:
                 self.encryptThenSign = True
+            if wsdl_policy.binding.getChild("OnlySignEntireHeadersAndBody") is not None:
+                self.onlySignEntireHeadersAndBody = True
             if wsdl_policy.binding.getChild("Layout") is not None:
                 layout = wsdl_policy.binding.getChild("Layout").getChild("Policy")[0]
                 self.headerLayout = layout.name
@@ -131,6 +133,7 @@ class Policy(Object):
                 raise Exception, 'WSDL policy requires client certificate authentication with HTTPS, but HttpsClientCertAuthenticated transport was not specified in Client'
             wsse.includeTimestamp = self.includeTimestamp
             wsse.encryptThenSign = self.encryptThenSign
+            wsse.signOnlyEntireHeadersAndBody = self.onlySignEntireHeadersAndBody
             if self.digestAlgorithm is not None:
                 for sig in wsse.signatures:
                     sig.digest = self.digestAlgorithm

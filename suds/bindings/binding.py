@@ -117,6 +117,7 @@ class Binding:
         body = self.body(content)
         env = self.envelope(header, body)
         if self.options().prefixes:
+            body.normalizePrefixes()
             env.promotePrefixes()
         else:
             env.refitPrefixes()

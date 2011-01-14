@@ -25,7 +25,11 @@ from cookielib import CookieJar
 from suds import *
 from suds.reader import DefinitionsReader
 from suds.transport import TransportError, Request
+<<<<<<< HEAD
 from suds.transport.options import TransportFactory
+=======
+from suds.transport.https import HttpAuthenticated
+>>>>>>> Remove unneeded import
 from suds.servicedefinition import ServiceDefinition
 from suds import sudsobject
 from sudsobject import Factory as InstFactory

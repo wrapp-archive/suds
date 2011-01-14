@@ -275,6 +275,7 @@ class Definitions(WObject):
         policy.wsseEnabled = False
         policy.includeTimestamp = False
         policy.addressing = False
+        policy.headerLayout = None
         policy.clientCertRequired = False
         policy.requiredTransports = None
         policy.blockEncryption = None

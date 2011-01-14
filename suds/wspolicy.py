@@ -38,6 +38,9 @@ class Policy(Object):
                 self.encryptedParts.append(('signature',))
             if wsdl_policy.binding.getChild("EncryptBeforeSigning") is not None:
                 self.encryptThenSign = True
+            if wsdl_policy.binding.getChild("Layout") is not None:
+                layout = wsdl_policy.binding.getChild("Layout").getChild("Policy")[0]
+                self.headerLayout = layout.name
             if wsdl_policy.binding_type == 'TransportBinding':
                 transport_token = wsdl_policy.binding.getChild("TransportToken")
                 if transport_token is not None:
@@ -139,6 +142,8 @@ class Policy(Object):
                     key.keyTransport = self.keyTransport
             if self.wsse11 is not None:
                 wsse.wsse11 = self.wsse11 
+            if self.headerLayout is not None:
+                wsse.headerLayout = self.headerLayout
             def create_signed_header_func(ns, name):
                 return lambda env: env.getChild("Header").getChildren(name, ns=(None, ns))
                     

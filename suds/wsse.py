@@ -41,6 +41,11 @@ wsuns = \
     ('wsu',
      'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
 
+HEADER_LAYOUT_STRICT = 'Strict'
+HEADER_LAYOUT_LAX = 'Lax'
+HEADER_LAYOUT_LAX_TIMESTAMP_FIRST = 'LaxTimestampFirst'
+HEADER_LAYOUT_LAX_TIMESTAMP_LAST = 'LaxTimestampLast'
+
 class Security(Object):
     """
     WS-Security object.
@@ -60,6 +65,7 @@ class Security(Object):
         self.mustUnderstand = True
         self.includeTimestamp = True
         self.encryptThenSign = False
+        self.headerLayout = HEADER_LAYOUT_LAX
         self.tokens = []
         self.signatures = []
         self.references = []
@@ -74,10 +80,12 @@ class Security(Object):
         """
         root = Element('Security', ns=wssens)
         root.set('mustUnderstand', str(self.mustUnderstand).lower())
-        if self.includeTimestamp:
+        if self.includeTimestamp and self.headerLayout != HEADER_LAYOUT_LAX_TIMESTAMP_LAST:
             root.append(Timestamp().xml())
         for t in self.tokens:
             root.append(t.xml())
+        if self.includeTimestamp and self.headerLayout == HEADER_LAYOUT_LAX_TIMESTAMP_LAST:
+            root.append(Timestamp().xml())
         return root
 
 class SecurityProcessor:
@@ -100,12 +108,13 @@ class SecurityProcessor:
             self.encryptMessage(soapenv, wsse)
     
     def signMessage(self, env, wsse):
-        index = len(wsse.tokens) + wsse.includeTimestamp and 1 or 0
-        env.getChild('Header').getChild('Security').insert([s.signMessage(env) for s in wsse.signatures], index)
+        env.getChild('Header').getChild('Security').insert([s.signMessage(env) for s in wsse.signatures], self.insertPosition(wsse))
 
     def encryptMessage(self, env, wsse):
-        index = len(wsse.tokens) + wsse.includeTimestamp and 1 or 0
-        env.getChild('Header').getChild('Security').insert([k.encryptMessage(env) for k in wsse.keys], index)
+        env.getChild('Header').getChild('Security').insert([k.encryptMessage(env) for k in wsse.keys], self.insertPosition(wsse))
+
+    def insertPosition(self, wsse):
+        return len(wsse.tokens) + (wsse.includeTimestamp and wsse.headerLayout != HEADER_LAYOUT_LAX_TIMESTAMP_LAST) and 1 or 0
 
 class Token(Object):
     """ I{Abstract} security token. """

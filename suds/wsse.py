@@ -90,6 +90,8 @@ class Security(Object):
 
 class SecurityProcessor:
     def processIncomingMessage(self, soapenv, wsse):
+        if soapenv.getChild('Header').getChild('Security') is None:
+            return
         if wsse.encryptThenSign:
             xmlsec.verifyMessage(soapenv, wsse.keystore)
             xmlsec.decryptMessage(soapenv, wsse.keystore)

@@ -121,6 +121,8 @@ class Binding:
             env.promotePrefixes()
         else:
             env.refitPrefixes()
+        if method.soap.version == 'SOAP12':
+            env.replaceUri(envns[1], 'http://www.w3.org/2003/05/soap-envelope')
         return Document(env)
     
     def get_reply(self, method, reply):

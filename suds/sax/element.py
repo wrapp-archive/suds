@@ -674,6 +674,15 @@ class Element:
         PrefixNormalizer.apply(self)
         return self
 
+    def replaceUri(self, old, new):
+        for c in self.children:
+            c.replaceUri(old, new)
+        if self.expns == old:
+            self.expns = new
+        for prefix in self.nsprefixes.items():
+            if prefix[1] == old:
+                self.nsprefixes[prefix[0]] = new
+
     def isempty(self, content=True):
         """
         Get whether the element has no children.

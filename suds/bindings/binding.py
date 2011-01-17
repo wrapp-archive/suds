@@ -34,11 +34,7 @@ from suds.xsd.query import TypeQuery, ElementQuery
 from suds.xsd.sxbasic import Element as SchemaElement
 from suds.options import Options
 from suds.plugin import PluginContainer
-<<<<<<< HEAD
 from suds.wsaddr import Action, MessageID, To
-=======
-from suds.wsaddr import Action, MessageID
->>>>>>> Set header layout on Security object based on layout given in WSDL policy
 from copy import deepcopy 
 
 log = getLogger(__name__)

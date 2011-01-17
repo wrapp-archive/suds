@@ -439,7 +439,7 @@ class Policy(NamedObject):
         if root.getChild('ExactlyOne') is not None and len(root.getChildren()) == 1:
             eo = root.getChild('ExactlyOne')
             if eo.getChild('All') is not None and len(eo.getChildren()) == 1:
-                root = eo.getChild('All')
+                self.root = root = eo.getChild('All')
         self.binding = root.getChild('AsymmetricBinding') or root.getChild('SymmetricBinding') or root.getChild('TransportBinding')
         self.tokens = filter(lambda x: x.name.endswith("Tokens"), root.getChildren())
         self.signed_parts = None

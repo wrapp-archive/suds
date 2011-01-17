@@ -87,8 +87,12 @@ class Policy(Object):
                 self.usernameRequired = True
             if token.getChild("Policy").getChild("X509Token") is not None:
                 self.signatureRequired = True
-        if wsdl_policy.root.getChild("Addressing") is not None and self.addressing == False:
-            optional = wsdl_policy.root.getChild("Addressing").get("Optional")
+        if (wsdl_policy.root.getChild("Addressing") is not None or wsdl_policy.root.getChild("UsingAddressing") is not None) and self.addressing == False:
+            if wsdl_policy.root.getChild("Addressing") is not None:
+                optional = wsdl_policy.root.getChild("Addressing").get("Optional")
+            else:
+                optional = wsdl_policy.root.getChild("UsingAddressing").get("Optional")
+                
             if optional == "false" or optional is None:
                 self.addressing = True
             elif optional == "true":

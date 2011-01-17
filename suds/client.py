@@ -666,10 +666,10 @@ class SoapClient:
         action = self.method.soap.action
         if isinstance(action, unicode):
             action = action.encode('utf-8')
-        content_type = 'text/xml'
         if self.method.soap.version == 'SOAP12':
-            content_type = 'application/soap+xml'
-        stock = { 'Content-Type' : '%s; charset=utf-8' % content_type, 'SOAPAction': '"%s"' % action }
+            stock = { 'Content-Type' : 'application/soap+xml; charset=utf-8; action="%s"' % action }
+        elif self.method.soap.version == 'SOAP11':
+            stock = { 'Content-Type' : 'text/xml; charset=utf-8', 'SOAPAction': '"%s"' % action }
         result = dict(stock, **self.options.headers)
         log.debug('headers = %s', result)
         return result

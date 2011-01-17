@@ -43,3 +43,12 @@ class MessageID(Object):
         messageid.setText("mid:" + ''.join(["%02X" % x for x in messageid_bytes]))
         return messageid
 
+class To(Object):
+    def __init__(self, location):
+        Object.__init__(self)
+        self.location = location
+
+    def xml(self):
+        to = Element('To', ns=wsa)
+        to.setText(self.location)
+        return to

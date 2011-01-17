@@ -34,7 +34,7 @@ from suds.xsd.query import TypeQuery, ElementQuery
 from suds.xsd.sxbasic import Element as SchemaElement
 from suds.options import Options
 from suds.plugin import PluginContainer
-from suds.wsaddr import Action, MessageID
+from suds.wsaddr import Action, MessageID, To
 from copy import deepcopy 
 
 log = getLogger(__name__)
@@ -351,6 +351,8 @@ class Binding:
         if self.options().wsaddr:
             content.append(Action(method).xml())
             content.append(MessageID().xml())
+            # TODO should use location from options if provided
+            content.append(To(method.location).xml())
         headers = self.options().soapheaders
         if not isinstance(headers, (tuple,list,dict)):
             headers = (headers,)

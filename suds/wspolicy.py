@@ -118,7 +118,7 @@ class Policy(Object):
         else:
             self.wsse11 = None
 
-    def enforceOptions(self, options):
+    def enforceOptions(self, options, location):
         if self.wsseEnabled:
             if not options.wsse:
                 options.wsse = Security()
@@ -171,7 +171,7 @@ class Policy(Object):
             options.wsaddr = self.addressing
         if self.requiredTransports is not None:
             for transport_scheme in self.requiredTransports:
-                if transport_scheme == self.location()[:self.location().find(':')]:
+                if transport_scheme == location[:location.find(':')]:
                     break
                 raise Exception, 'Specified transport is not allowed by WSDL policy'
 

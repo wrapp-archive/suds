@@ -1,5 +1,6 @@
 from M2Crypto import *
 import string
+from base64 import b64encode
 
 class X509IssuerSerialKeypairReference:
     def __init__(self, issuer, serial):
@@ -57,6 +58,9 @@ class X509PemFileCertificate:
     def getSHA1Fingerprint(self):
         return self.sha1fingerprint
     
+    def getCertificateText(self):
+        return b64encode(self.x509_cert.as_der())
+
     def getIssuer(self):
         return self.x509_issuer_serial.getIssuer()
     

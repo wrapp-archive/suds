@@ -46,6 +46,10 @@ HEADER_LAYOUT_LAX = 'Lax'
 HEADER_LAYOUT_LAX_TIMESTAMP_FIRST = 'LaxTimestampFirst'
 HEADER_LAYOUT_LAX_TIMESTAMP_LAST = 'LaxTimestampLast'
 
+def generate_unique_id(do_not_pass_this=[0]):
+    do_not_pass_this[0] = do_not_pass_this[0] + 1
+    return do_not_pass_this[0]
+
 class Security(Object):
     """
     WS-Security object.
@@ -110,7 +114,7 @@ class SecurityProcessor:
             self.encryptMessage(soapenv, wsse)
     
     def signMessage(self, env, wsse):
-        env.getChild('Header').getChild('Security').insert([s.signMessage(env) for s in wsse.signatures], self.insertPosition(wsse))
+        env.getChild('Header').getChild('Security').insert(reduce(lambda x,y: x + y.signMessage(env), wsse.signatures, []), self.insertPosition(wsse))
 
     def encryptMessage(self, env, wsse):
         env.getChild('Header').getChild('Security').insert([k.encryptMessage(env) for k in wsse.keys], self.insertPosition(wsse))
@@ -262,9 +266,22 @@ class Signature(Object):
             for element in addl_elements:
                 if element not in elements_to_digest:
                     elements_to_digest.append(element)
-        
-        sig = xmlsec.signMessage(self.key, self.x509_issuer_serial, elements_to_digest, self.keyReference, self.digest)
-        return sig
+
+        bst_id = None
+        bst = None
+        if self.keyReference == xmlsec.KEY_REFERENCE_BINARY_SECURITY_TOKEN:
+            bst = Element("BinarySecurityToken", ns=wssens)
+            bst.setText(self.x509_issuer_serial.getCertificateText())
+            bst.set("ValueType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3")
+            bst.set("EncodingType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary")
+            bst_id = "BSTID-" + str(generate_unique_id())
+            bst.set("wsu:Id", bst_id)
+
+        sig = xmlsec.signMessage(self.key, self.x509_issuer_serial, elements_to_digest, self.keyReference, self.digest, bst_id)
+        if bst is not None:
+            return [bst, sig]
+        else:
+            return [sig]
 
     def __init__(self, key, x509_issuer_serial):
         Object.__init__(self)

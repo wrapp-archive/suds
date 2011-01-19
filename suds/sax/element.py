@@ -351,6 +351,7 @@ class Element:
         for child in objects:
             if isinstance(child, Element):
                 self.children.insert(index, child)
+                index = index + 1
                 child.parent = self
             else:
                 raise Exception('append %s not-valid' % child.__class__.__name__)

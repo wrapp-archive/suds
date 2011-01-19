@@ -102,6 +102,7 @@ keyTransportProperties[KEY_TRANSPORT_RSA_OAEP] = {
 
 KEY_REFERENCE_ISSUER_SERIAL = 'IssuerSerial'
 KEY_REFERENCE_FINGERPRINT = 'Fingerprint'
+KEY_REFERENCE_BINARY_SECURITY_TOKEN = 'BinarySecurityToken'
 
 random = random.SystemRandom()
 
@@ -109,7 +110,7 @@ def generate_unique_id(do_not_pass_this=[0]):
     do_not_pass_this[0] = do_not_pass_this[0] + 1
     return do_not_pass_this[0]
 
-def build_key_info(cert, reference_type):
+def build_key_info(cert, reference_type, bst_id=None):
     key_info = Element("KeyInfo", ns=dsns)
     sec_token_ref = Element("SecurityTokenReference", ns=wssens)
     if reference_type == KEY_REFERENCE_ISSUER_SERIAL:
@@ -129,11 +130,16 @@ def build_key_info(cert, reference_type):
         key_ident.set("ValueType", "http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1")
         key_ident.setText(b64encode(cert.getSHA1Fingerprint().getFingerprint().decode('hex')))
         sec_token_ref.append(key_ident)
+    elif reference_type == KEY_REFERENCE_BINARY_SECURITY_TOKEN:
+        reference = Element("Reference", ns=wssens)
+        reference.set("ValueType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3")
+        reference.set("URI", "#" + bst_id)
+        sec_token_ref.append(reference)
     key_info.append(sec_token_ref)
     
     return key_info
 
-def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUER_SERIAL, digest_algorithm=DIGEST_SHA1):
+def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUER_SERIAL, digest_algorithm=DIGEST_SHA1, bst_id=None):
     sig = Element("Signature", ns=dsns)
 
     signed_info = Element("SignedInfo", ns=dsns)
@@ -146,7 +152,7 @@ def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUE
 
     sig_value = Element("SignatureValue", ns=dsns)
 
-    key_info = build_key_info(ref, reference_type)
+    key_info = build_key_info(ref, reference_type, bst_id)
     
     sig.append(signed_info)
     sig.append(sig_value)

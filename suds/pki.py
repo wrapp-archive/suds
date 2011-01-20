@@ -42,12 +42,29 @@ class X509FingerprintKeypairReference:
     def normalize_fingerprint(self, fingerprint):
         return fingerprint.lower()
 
+class X509SubjectKeyIdentifierKeypairReference:
+    def __init__(self, ski):
+        self.ski = self.normalize_ski(ski)
+
+    def getSubjectKeyIdentifier(self):
+        return self.ski
+
+    def normalize_ski(self, ski):
+        return ski.lower()
+
+    def __hash__(self):
+        return self.ski.__hash__()
+
+    def __eq__(self, other):
+        return self.ski == other.getSubjectKeyIdentifier()
+
 class X509PemFileCertificate:
     def __init__(self, pem_file_name):
         self.x509_cert = X509.load_cert(pem_file_name, X509.FORMAT_PEM)
         self.x509_issuer_serial = self.build_x509_issuer_serial(self.x509_cert)
         self.md5fingerprint = X509FingerprintKeypairReference(self.x509_cert.get_fingerprint('md5'), 'md5')
         self.sha1fingerprint = X509FingerprintKeypairReference(self.x509_cert.get_fingerprint('sha1'), 'sha1')
+        self.subjectKeyIdentifier = X509SubjectKeyIdentifierKeypairReference(self.x509_cert.get_ext('subjectKeyIdentifier').get_value().replace(':',''))
 
     def getX509IssuerSerial(self):
         return self.x509_issuer_serial
@@ -57,6 +74,9 @@ class X509PemFileCertificate:
     
     def getSHA1Fingerprint(self):
         return self.sha1fingerprint
+    
+    def getSubjectKeyIdentifier(self):
+        return self.subjectKeyIdentifier
     
     def getCertificateText(self):
         return b64encode(self.x509_cert.as_der())
@@ -74,7 +94,7 @@ class X509PemFileCertificate:
         return self.x509_cert.get_pubkey()
     
     def getReferences(self):
-        return [self.x509_issuer_serial, self.md5fingerprint, self.sha1fingerprint]
+        return [self.x509_issuer_serial, self.md5fingerprint, self.sha1fingerprint, self.subjectKeyIdentifier]
     
     def build_x509_issuer_serial(self, x509_cert):
         x509_cert_issuer = x509_cert.get_issuer()

@@ -207,7 +207,9 @@ def verifyMessage(env, keystore):
     for sig_elt in env.getChild("Header").getChild("Security").getChildren("Signature", ns=dsns):
         prefix_list = []
         if sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").get("Algorithm") == "http://www.w3.org/2001/10/xml-exc-c14n#":
-            prefix_list = sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces").get("PrefixList").split(" ")
+            prefix_list=[]
+            if sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces") is not None:
+                prefix_list = sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces").get("PrefixList").split(" ")
         signed_content = sig_elt.getChild("SignedInfo", ns=dsns).canonical(prefix_list)
         signature = b64decode(sig_elt.getChild("SignatureValue", ns=dsns).getText())
         sec_token_reference = sig_elt.getChild("KeyInfo").getChild("SecurityTokenReference")
@@ -234,7 +236,9 @@ def verifyMessage(env, keystore):
             prefix_list = []
             for transform in signed_part.getChild("Transforms", ns=dsns).getChildren("Transform", ns=dsns):
                 if transform.get("Algorithm") == "http://www.w3.org/2001/10/xml-exc-c14n#":
-                    prefix_list = transform.getChild("InclusiveNamespaces").get("PrefixList").split(" ")
+                    prefix_list=[]
+                    if sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces") is not None:
+                        prefix_list = sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces").get("PrefixList").split(" ")
             element_digested = signed_data_blocks[signed_part_id[1:]]
             element_content = element_digested.canonical(prefix_list)
             digest_props = digestProperties[signed_part.getChild("DigestMethod").get("Algorithm")]

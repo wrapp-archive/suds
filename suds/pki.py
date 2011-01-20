@@ -122,8 +122,9 @@ class Keystore:
     def __init__(self):
         self.keystore = dict()
     
-    def addKey(self, key, reference):
-        self.keystore[reference] = key
+    def addKey(self, key, cert):
+        for reference in cert.getReferences():
+            self.keystore[reference] = key
     
     def addCertificate(self, cert):
         for reference in cert.getReferences():

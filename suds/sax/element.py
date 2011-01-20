@@ -507,6 +507,14 @@ class Element:
             child.parent = None
         return detached
         
+    def resolveExpns(self):
+        n = self
+        while n is not None:
+            if n.expns is not None:
+                return n.expns
+            n = n.parent
+        return Namespace.default
+    
     def resolvePrefix(self, prefix, default=Namespace.default):
         """
         Resolve the specified prefix to a namespace.  The I{nsprefixes} is
@@ -804,6 +812,8 @@ class Element:
 
     def canonical(self, prefixList=[]):
         eligiblePrefixes = reduce(lambda x,y: x | set(y.nsprefixes.keys()), self.ancestors(), set())
+        if any(map(lambda x: x.expns is not None, self.ancestors())):
+            eligiblePrefixes.add('#default') 
         return self.canonical_(prefixList, eligiblePrefixes)
     
     def canonical_(self, prefixList, eligiblePrefixes):
@@ -836,8 +846,7 @@ class Element:
             pns = (None, self.parent.expns)
         if myns[1] != pns[1]:
             if self.expns is not None:
-                d = ' xmlns="%s"' % self.expns
-                s.append(d)
+                eligiblePrefixes.add('#default')
         for item in self.nsprefixes.items():
             (p,u) = item
             if self.parent is not None:
@@ -845,7 +854,11 @@ class Element:
                 if ns[1] == u: continue
             eligiblePrefixes.add(p)
         for prefix in sorted(set(eligiblePrefixes)):
-            if self.prefix == prefix or prefix in [a.prefix for a in self.attributes] or prefix in prefixList:
+            if prefix == '#default' and (self.prefix is None or None in [a.prefix for a in self.attributes] or prefix in prefixList):
+                d = ' xmlns="%s"' % self.resolveExpns()
+                s.append(d)
+                eligiblePrefixes.remove(prefix)
+            elif self.prefix == prefix or prefix in [a.prefix for a in self.attributes] or prefix in prefixList:
                 d = ' xmlns:%s="%s"' % (prefix, self.resolvePrefix(prefix)[1])
                 s.append(d)
                 eligiblePrefixes.remove(prefix)

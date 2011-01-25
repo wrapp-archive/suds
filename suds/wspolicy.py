@@ -97,30 +97,27 @@ class Policy(Object):
                 self.addressing = True
             elif optional == "true":
                 self.addressing = None # use what the user specifies
-        if wsdl_policy.signed_parts is not None:
-            for part in wsdl_policy.signed_parts:
-                if part.name == "Body":
-                    self.signedParts.append(('body',))
-                elif part.name == "Header":
-                    self.signedParts.append(('header', part.get("Namespace"), part.get("Name")))
-                else:
-                    # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
-                    pass
-        if wsdl_policy.encrypted_parts is not None:
-            for part in wsdl_policy.encrypted_parts:
-                if part.name == "Body":
-                    self.encryptedParts.append(('body',))
-                elif part.name == "Header":
-                    self.encryptedParts.append(('header', part.get("Namespace"), part.get("Name")))
-                else:
-                    # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
-                    pass
+        self.signedParts = self.buildParts(wsdl_policy.signed_parts)
+        self.encryptedParts = self.buildParts(wsdl_policy.encrypted_parts)
         if wsdl_policy.root.getChild("Wss10") is not None:
             self.wsse11 = False
         elif wsdl_policy.root.getChild("Wss11") is not None:
             self.wsse11 = True
         else:
             self.wsse11 = None
+
+    def buildParts(self, parts_element):
+        parts = []
+        if parts_element is not None:
+            for part in parts_element:
+                if part.name == "Body":
+                    parts.append(('body',))
+                elif part.name == "Header":
+                    parts.append(('header', part.get("Namespace"), part.get("Name")))
+                else:
+                    # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
+                    pass
+        return parts
 
     def enforceOptions(self, options, location):
         if self.wsseEnabled:

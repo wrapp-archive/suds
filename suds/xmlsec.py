@@ -344,7 +344,7 @@ def decryptMessage(env, keystore):
             reference = X509IssuerSerialKeypairReference(x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
         elif sec_token_reference.getChild("KeyIdentifier") is not None and sec_token_reference.getChild("KeyIdentifier").get("ValueType") == 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1':
             fingerprint = b64decode(sec_token_reference.getChild("KeyIdentifier").getText())
-            reference = X509FingerprintKeypairReference(fingerprint, 'sha1')
+            reference = X509FingerprintKeypairReference(fingerprint.encode('hex'), 'sha1')
         elif sec_token_reference.getChild("KeyIdentifier") is not None and sec_token_reference.getChild("KeyIdentifier").get("ValueType") == 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509SubjectKeyIdentifier':
             ski = b64decode(sec_token_reference.getChild("KeyIdentifier").getText())
             reference = X509SubjectKeyIdentifierKeypairReference(ski.encode('hex'))

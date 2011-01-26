@@ -123,10 +123,12 @@ class SecurityProcessor:
         def removeEncryptedHeaders(elt):
             if not elt.match("EncryptedHeader", ns=wsse11ns):
                 return
+            id = elt.get("Id", ns=wsuns)
             children = elt.detachChildren()
             elt.parent.replaceChild(elt, children)
+            children[0].set("Id", id)
 
-        env.walk(removeEncryptedHeaders)
+        soapenv.walk(removeEncryptedHeaders)
         
     def signMessage(self, env, wsse):
         env.getChild('Header').getChild('Security').insert(reduce(lambda x,y: x + y.signMessage(env), wsse.signatures, []), self.insertPosition(wsse))

@@ -216,15 +216,23 @@ def verifyMessage(env, keystore):
         if sec_token_reference.getChild("X509Data") is not None:
             x509_issuer_serial_elt = sec_token_reference.getChild("X509Data").getChild("X509IssuerSerial")
             reference = X509IssuerSerialKeypairReference(x509_issuer_serial_elt.getChild("X509IssuerName").getText(), int(x509_issuer_serial_elt.getChild("X509SerialNumber").getText()))
+            pub_key = keystore.lookup(reference).getEvpPublicKey()
         elif sec_token_reference.getChild("KeyIdentifier") is not None and sec_token_reference.getChild("KeyIdentifier").get("ValueType") == 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1':
             fingerprint = b64decode(sec_token_reference.getChild("KeyIdentifier").getText())
             reference = X509FingerprintKeypairReference(fingerprint.encode('hex'), 'sha1')
+            pub_key = keystore.lookup(reference).getEvpPublicKey()
         elif sec_token_reference.getChild("KeyIdentifier") is not None and sec_token_reference.getChild("KeyIdentifier").get("ValueType") == 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509SubjectKeyIdentifier':
             ski = b64decode(sec_token_reference.getChild("KeyIdentifier").getText())
             reference = X509SubjectKeyIdentifierKeypairReference(ski.encode('hex'))
+            pub_key = keystore.lookup(reference).getEvpPublicKey()
+        elif sec_token_reference.getChild("Reference") is not None and sec_token_reference.getChild("Reference").get("ValueType") == 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3':
+            bst_id = sec_token_reference.getChild("Reference").get("URI")
+            if not bst_id[0] == "#":
+                raise Exception, "Cannot handle non-local BinarySecurityToken references"
+            cert_as_der = b64decode(signed_data_blocks[bst_id[1:]].getText())
+            pub_key = X509.load_cert_der_string(cert_as_der).get_pubkey()
         else:
             raise Exception, 'Response contained unrecognized SecurityTokenReference'
-        pub_key = keystore.lookup(reference).getEvpPublicKey()
         pub_key.reset_context(md='sha1')
         pub_key.verify_init()
         pub_key.verify_update(signed_content.encode("utf-8"))

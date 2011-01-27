@@ -275,7 +275,7 @@ class Signature(Object):
 
     def verifyOnlyEntireHeadersAndBody(self, elements_to_digest):
         for element in elements_to_digest:
-            if element.match('Body', ns=envns) or element.parent.match('Header', ns=envns) or element.parent.match('Security', ns=wssens):
+            if element.match('Body') or element.parent.match('Header') or element.parent.match('Security'):
                 continue
             raise Exception, 'A descendant of a header or the body was signed, but only entire headers and body were permitted to be signed'
 

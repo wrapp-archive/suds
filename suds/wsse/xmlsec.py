@@ -248,8 +248,8 @@ def verifyMessage(env, keystore):
             for transform in signed_part.getChild("Transforms", ns=dsns).getChildren("Transform", ns=dsns):
                 if transform.get("Algorithm") == "http://www.w3.org/2001/10/xml-exc-c14n#":
                     prefix_list=[]
-                    if sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces") is not None:
-                        prefix_list = sig_elt.getChild("SignedInfo", ns=dsns).getChild("CanonicalizationMethod").getChild("InclusiveNamespaces").get("PrefixList").split(" ")
+                    if transform.getChild("InclusiveNamespaces") is not None:
+                        prefix_list = transform.getChild("InclusiveNamespaces").get("PrefixList").split(" ")
             element_digested = signed_data_blocks[signed_part_id[1:]]
             element_content = element_digested.canonical(prefix_list)
             digest_props = digestProperties[signed_part.getChild("DigestMethod").get("Algorithm")]

@@ -294,11 +294,11 @@ class Key(Object):
         
         for elements_to_encrypt_func in self.encrypted_parts:
             addl_elements = elements_to_encrypt_func(env)
-            if addl_elements is None:
+            if addl_elements[0] is None:
                 continue
-            if not isinstance(addl_elements, list):
-                addl_elements = [addl_elements]
-            for element in addl_elements:
+            if not isinstance(addl_elements[0], list):
+                addl_elements = ([addl_elements[0]], addl_elements[1])
+            for element in addl_elements[0]:
                 if element not in elements_to_encrypt:
                     if element[0].parent.match('Header') and use_encrypted_header:
                         enc_hdr = Element('EncryptedHeader', ns=wsse11ns)
@@ -307,7 +307,7 @@ class Key(Object):
                         elements_to_encrypt.append((enc_hdr, 'Content'))
                         encrypted_headers.append(enc_hdr)
                     else:
-                        elements_to_encrypt.append(element)
+                        elements_to_encrypt.append((element, addl_elements[1]))
 
         key = xmlsec.encryptMessage(self.cert, elements_to_encrypt, self.keyReference, self.keyTransport, self.blockEncryption)
 

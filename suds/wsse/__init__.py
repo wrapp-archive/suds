@@ -285,7 +285,7 @@ class Signature(Object):
         self.x509_issuer_serial = x509_issuer_serial
         self.signed_parts = []
         self.digest = xmlsec.DIGEST_SHA1
-        self.keyReference = xmlsec.KEY_REFERENCE_ISSUER_SERIAL
+        self.keyReference = xmlsec.KEY_REFERENCE_BINARY_SECURITY_TOKEN
 
 class Key(Object):
     def encryptMessage(self, env, use_encrypted_header=False):

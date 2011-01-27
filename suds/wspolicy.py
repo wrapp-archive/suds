@@ -58,9 +58,12 @@ class Policy(Object):
                 token = wsdl_policy.binding.getChild("InitiatorToken")
                 if token.getChild("Policy").getChild("X509Token") is not None:
                     self.signatureRequired = True
+                    self.signedParts.extend(self.buildParts(token.getChild("Policy").getChild("SignedParts")))
             if (wsdl_policy.binding.getChild("InitiatorToken") is not None and wsdl_policy.binding.getChild("RecipientToken") is not None) or \
                 wsdl_policy.binding.getChild("ProtectionToken") is not None:
                 self.encryptionRequired = True
+                token = wsdl_policy.binding.getChild("RecipientToken") or wsdl_policy.binding.getChild("ProtectionToken")
+                self.encryptedParts.extend(self.buildParts(token.getChild("Policy").getChild("EncryptedParts")))
             if self.blockEncryption is None:
                 algorithm_suite = wsdl_policy.binding.getChild("AlgorithmSuite")
                 if algorithm_suite is not None:
@@ -87,6 +90,7 @@ class Policy(Object):
                 self.usernameRequired = True
             if token.getChild("Policy").getChild("X509Token") is not None:
                 self.signatureRequired = True
+                self.signedParts.extend(self.buildParts(token.getChild("Policy").getChild("SignedParts")))
         if (wsdl_policy.root.getChild("Addressing") is not None or wsdl_policy.root.getChild("UsingAddressing") is not None) and self.addressing == False:
             if wsdl_policy.root.getChild("Addressing") is not None:
                 optional = wsdl_policy.root.getChild("Addressing").get("Optional")
@@ -97,8 +101,8 @@ class Policy(Object):
                 self.addressing = True
             elif optional == "true":
                 self.addressing = None # use what the user specifies
-        self.signedParts = self.buildParts(wsdl_policy.signed_parts)
-        self.encryptedParts = self.buildParts(wsdl_policy.encrypted_parts)
+        self.signedParts.extend(self.buildParts(wsdl_policy.signed_parts))
+        self.encryptedParts.extend(self.buildParts(wsdl_policy.encrypted_parts))
         if wsdl_policy.root.getChild("Wss10") is not None:
             self.wsse11 = False
         elif wsdl_policy.root.getChild("Wss11") is not None:

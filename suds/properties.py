@@ -492,8 +492,8 @@ class Skin(object):
     @ivar __pts__: The wrapped object.
     @type __pts__: L{Properties}.
     """
-    def __init__(self, domain, definitions, kwargs):
-        self.__pts__ = Properties(domain, definitions, kwargs)
+    def __init__(self, properties):
+        self.__pts__ = properties
         
     def __setattr__(self, name, value):
         builtin = name.startswith('__') and name.endswith('__')
@@ -529,7 +529,7 @@ class MultiSkin(object):
         for s in self.skins:
             p = Unskin(s)
             if not p.notset(name):
-                if isinstance(Skin, p.get(name)):
+                if isinstance(p.get(name), Skin):
                     candidates.append(s)
                 else:
                     return p.get(name)

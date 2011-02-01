@@ -37,7 +37,7 @@ from suds.cache import ObjectCache
 from suds.sax.document import Document
 from suds.sax.parser import Parser
 from suds.options import Options
-from suds.properties import Unskin
+from suds.properties import Unskin, MultiSkin
 from suds.wsse import SecurityProcessor
 from urlparse import urlparse
 from copy import deepcopy
@@ -107,11 +107,13 @@ class Client(object):
         options = Options()
         options.transport = HttpAuthenticated()
         self.options = options
+        combined_options = MultiSkin([options])
+        self.combined_options = options
         options.cache = ObjectCache(days=1)
         self.set_options(**kwargs)
-        reader = DefinitionsReader(options, Definitions)
+        reader = DefinitionsReader(combined_options, Definitions)
         self.wsdl = reader.open(url)
-        plugins = PluginContainer(options.plugins)
+        plugins = PluginContainer(combined_options.plugins)
         plugins.init.initialized(wsdl=self.wsdl)
         self.factory = Factory(self.wsdl)
         self.service = ServiceSelector(self, self.wsdl.services)
@@ -178,9 +180,10 @@ class Client(object):
                 pass
         clone = Uninitialized()
         clone.options = Options()
-        cp = Unskin(clone.options)
-        mp = Unskin(self.options)
+        cp = Unskin(clone.client_options)
+        mp = Unskin(self.client_options)
         cp.update(deepcopy(mp))
+        clone.combined_options = MultiSkin([clone.options])
         clone.wsdl = self.wsdl
         clone.factory = self.factory
         clone.service = ServiceSelector(clone, self.wsdl.services)
@@ -351,7 +354,7 @@ class ServiceSelector:
         @return: A L{PortSelector} for the I{default} service.
         @rtype: L{PortSelector}. 
         """
-        ds = self.__client.options.service
+        ds = self.__client.combined_options.service
         if ds is None:
             return None
         else:
@@ -454,7 +457,7 @@ class PortSelector:
         @return: A L{MethodSelector} for the I{default} port.
         @rtype: L{MethodSelector}. 
         """
-        dp = self.__client.options.port
+        dp = self.__client.combined_options.port
         if dp is None:
             return None
         else:
@@ -544,7 +547,7 @@ class Method:
         
     def faults(self):
         """ get faults option """
-        return self.client.options.faults
+        return self.client.combined_options.faults
         
     def clientclass(self, kwargs):
         """ get soap client class """
@@ -576,7 +579,7 @@ class SoapClient:
         """
         self.client = client
         self.method = method
-        self.options = client.options
+        self.options = client.combined_options
         self.cookiejar = CookieJar()
         
     def invoke(self, args, kwargs):
@@ -838,8 +841,8 @@ class RequestContext:
         @return: The returned value for the invoked method.
         @rtype: object 
         """
-        options = self.client.options
-        plugins = PluginContainer(options.plugins)
+        options = self.client.combined_options
+        plugins = PluginContainer(combined_options.plugins)
         ctx = plugins.message.received(reply=reply)
         reply = ctx.reply
         return self.client.succeeded(self.binding, reply)

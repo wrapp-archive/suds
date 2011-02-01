@@ -54,4 +54,4 @@ class Options(Skin):
             Definition('username', basestring, None),
             Definition('password', basestring, None),
         ]
-        Skin.__init__(self, domain, definitions, kwargs)
+        Skin.__init__(self, Properties(domain, definitions, kwargs))

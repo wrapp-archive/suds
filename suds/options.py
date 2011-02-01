@@ -130,4 +130,9 @@ class Options(Skin):
             Definition('plugins', (list, tuple), []),
             Definition('nosend', bool, False),
         ]
-        Skin.__init__(self, domain, definitions, kwargs)
+        Skin.__init__(self, Properties(domain, definitions, kwargs))
+
+class InheritableOptions(Skin):
+    def __init__(self, options):
+        properties = [Unskin(o) for o in options]
+        Skin.__init__(self, InheritableProperties(properties))

@@ -292,7 +292,7 @@ class Properties:
         @return: self
         @rtype: L{Properties}
         """
-        self.provider(name).__set(name, None)
+        self.provider(name).__unset(name)
         return self
             
     def get(self, name, *df):
@@ -428,6 +428,12 @@ class Properties:
         self.modified.add(name)
         d.linker.updated(self, prev, value)
         
+    def __unset(self, name):
+        d = self.definition(name)
+        self.defined[name] = d.default
+        self.modified.remove(name)
+        #d.linker.updated(self, prev, value)
+
     def __get(self, name, *df):
         d = self.definition(name)
         value = self.defined.get(name)
@@ -477,6 +483,9 @@ class Skin(object):
     def __getattr__(self, name):
         return self.__pts__.get(name)
     
+    def __delattr__(self, name):
+        return self.__pts__.unset(name)
+
     def __repr__(self):
         return str(self)
     

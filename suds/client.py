@@ -25,7 +25,7 @@ from cookielib import CookieJar
 from suds import *
 from suds.reader import DefinitionsReader
 from suds.transport import TransportError, Request
-from suds.transport.https import HttpAuthenticated
+from suds.transport.options import TransportFactory
 from suds.servicedefinition import ServiceDefinition
 from suds import sudsobject
 from sudsobject import Factory as InstFactory
@@ -105,11 +105,10 @@ class Client(object):
         @see: L{Options}
         """
         options = Options()
-        options.transport = HttpAuthenticated()
+        options.cache = ObjectCache(days=1)
         self.options = options
         combined_options = MultiSkin([options])
         self.combined_options = options
-        options.cache = ObjectCache(days=1)
         self.set_options(**kwargs)
         reader = DefinitionsReader(combined_options, Definitions)
         self.wsdl = reader.open(url)
@@ -625,7 +624,7 @@ class SoapClient:
         result = None
         location = self.location()
         binding = self.method.binding.input
-        transport = self.options.transport
+        transport = TransportFactory.get(self.options.transport)
         retxml = self.options.retxml
         nosend = self.options.nosend
         prettyxml = self.options.prettyxml
@@ -673,7 +672,7 @@ class SoapClient:
             stock = { 'Content-Type' : 'application/soap+xml; charset=utf-8; action="%s"' % action }
         elif self.method.soap.version == 'SOAP11':
             stock = { 'Content-Type' : 'text/xml; charset=utf-8', 'SOAPAction': '"%s"' % action }
-        result = dict(stock, **self.options.headers)
+        result = dict(stock, **self.options.transport.headers)
         log.debug('headers = %s', result)
         return result
     

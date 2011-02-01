@@ -99,9 +99,9 @@ class WindowsHttpAuthenticated(HttpAuthenticated):
         return handlers
 
 class HttpsClientCertAuthenticated(HttpTransport):
-    def __init__(self, key, cert, **kwargs):
+    def __init__(self, **kwargs):
         HttpTransport.__init__(self, **kwargs)
-        self.urlopener = u2.build_opener(HTTPSClientAuthHandler(key, cert))
+        self.urlopener = u2.build_opener(HTTPSClientAuthHandler(self.options.keyfile, self.options.certfile))
 
 #HTTPS Client Auth solution for urllib2, inspired by
 # http://bugs.python.org/issue3466

@@ -21,6 +21,7 @@ Contains xml document reader classes.
 
 from suds.sax.parser import Parser
 from suds.transport import Request
+from suds.transport.options import TransportFactory
 from suds.cache import Cache, NoCache
 from suds.store import DocumentStore
 from suds.plugin import PluginContainer
@@ -92,7 +93,7 @@ class DocumentReader(Reader):
         store = DocumentStore()
         fp = store.open(url)
         if fp is None:
-            fp = self.options.transport.open(Request(url))
+            fp = TransportFactory.get(self.options.transport).open(Request(url))
         content = fp.read()
         fp.close()
         ctx = self.plugins.document.loaded(url=url, document=content)

@@ -19,10 +19,25 @@ Contains classes for transport options.
 """
 
 
-from suds.transport import *
+import suds.transport.https
 from suds.properties import *
 
-   
+PROTOCOL_HTTP = 'http'
+PROTOCOL_HTTP_NTLM_AUTH = 'http-ntlm'
+PROTOCOL_HTTPS_CERT_AUTH = 'https-cert'
+
+class TransportFactory:
+    @classmethod
+    def get(cls, options):
+        if options.protocol == PROTOCOL_HTTP:
+            transport = suds.transport.https.HttpAuthenticated()
+        elif options.protocol == PROTOCOL_HTTP_NTLM_AUTH:
+            transport = suds.transport.https.WindowsHttpAuthenticated()
+        elif options.protocol == PROTOCOL_HTTPS_CERT_AUTH:
+            transport = suds.transport.https.HttpsClientCertAuthenticated()
+        transport.options = options 
+        return transport
+    
 class Options(Skin):
     """
     Options:
@@ -48,10 +63,13 @@ class Options(Skin):
     def __init__(self, **kwargs):
         domain = __name__
         definitions = [
+            Definition('protocol', basestring, PROTOCOL_HTTP),
             Definition('proxy', dict, {}),
             Definition('timeout', (int,float), 90),
             Definition('headers', dict, {}),
             Definition('username', basestring, None),
             Definition('password', basestring, None),
+            Definition('keyfile', basestring, None),
+            Definition('certfile', basestring, None),
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))

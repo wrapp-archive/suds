@@ -23,21 +23,7 @@ from suds.wsse import Security
 from suds.xsd.doctor import Doctor
 from suds.transport import Transport
 from suds.cache import Cache, NoCache
-
-
-class TpLinker(AutoLinker):
-    """
-    Transport (auto) linker used to manage linkage between
-    transport objects Properties and those Properties that contain them.
-    """
-    
-    def updated(self, properties, prev, next):
-        if isinstance(prev, Transport):
-            tp = Unskin(prev.options)
-            properties.unlink(tp)
-        if isinstance(next, Transport):
-            tp = Unskin(next.options)
-            properties.link(tp)
+import suds.transport.options
 
 
 class Options(Skin):
@@ -113,7 +99,7 @@ class Options(Skin):
         definitions = [
             Definition('cache', Cache, NoCache()),
             Definition('faults', bool, True),
-            Definition('transport', Transport, None, TpLinker()),
+            Definition('transport', suds.transport.options.Options, suds.transport.options.Options()),
             Definition('service', (int, basestring), None),
             Definition('port', (int, basestring), None),
             Definition('location', basestring, None),

@@ -20,7 +20,7 @@ The I{xmlsec} module provides XML Encryption and XML Digital Signature functiona
 
 from suds.sax.element import Element
 from suds.sax.parser import Parser
-from suds.pki import *
+from pki import *
 from base64 import b64encode,b64decode
 from M2Crypto import *
 import random

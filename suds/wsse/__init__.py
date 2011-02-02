@@ -25,7 +25,7 @@ from suds.sax.element import Element
 from suds.sax.date import UTC
 from datetime import datetime, timedelta
 import xmlsec
-from suds.pki import *
+from pki import Keystore
 
 try:
     from hashlib import md5

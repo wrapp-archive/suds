@@ -272,22 +272,6 @@ class Definitions(WObject):
     
     def build_policy(self, binding, msg):
         policy = wspolicy.Policy()
-        policy.wsseEnabled = False
-        policy.includeTimestamp = False
-        policy.addressing = False
-        policy.headerLayout = None
-        policy.onlySignEntireHeadersAndBody = False
-        policy.clientCertRequired = False
-        policy.requiredTransports = None
-        policy.blockEncryption = None
-        policy.digestAlgorithm = None
-        policy.keyTransport = None
-        policy.usernameRequired = False
-        policy.signatureRequired = False
-        policy.encryptionRequired = False
-        policy.encryptThenSign = False
-        policy.signedParts = []
-        policy.encryptedParts = []
         for wsdl_policy in binding.policies + msg.policies:
             policy.addFromWsdl(wsdl_policy)
         return policy

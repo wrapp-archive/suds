@@ -617,23 +617,16 @@ class SoapClient:
         return result
     
     def enforce_policy_outgoing(self):
-        policy = self.method.soap.input.policy
-        if self.options.overridepolicy is not None:
-            policy = override(policy, self.options.overridepolicy)
-        policy.enforceOptions(self.options, self.location())
+        self.options.__skins__ = [self.client.options, self.method.soap.input.policy.buildOptions()]
 
     def enforce_encryption_policy_incoming(self, doc):
         env = doc.getChild('Envelope')
         policy = self.method.soap.output.policy
-        if self.options.overridepolicy is not None:
-            policy = override(policy, self.options.overridepolicy)
         policy.enforceMessagePreSecurity(env)
         
     def enforce_policy_incoming(self, doc):
         env = doc.getChild('Envelope')
         policy = self.method.soap.output.policy
-        if self.options.overridepolicy is not None:
-            policy = override(policy, self.options.overridepolicy)
         policy.enforceMessagePostSecurity(env)
 
     def send(self, soapenv):

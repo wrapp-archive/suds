@@ -19,7 +19,6 @@ Suds basic options classes.
 """
 
 from suds.properties import *
-from suds.wspolicy import Policy
 from suds.xsd.doctor import Doctor
 from suds.transport import Transport
 from suds.cache import Cache, NoCache
@@ -117,6 +116,5 @@ class Options(Skin):
             Definition('plugins', (list, tuple), []),
             Definition('nosend', bool, False),
             Definition('enforcepolicy', bool, True),
-            Definition('overridepolicy', Policy, None),
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))

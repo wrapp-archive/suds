@@ -464,10 +464,66 @@ class Properties:
         return self.str([])
 
 
-class ListProperties(Properties):
+class ListProperties:
     def __init__(self, skin_class):
-        self.defined = dict()
+        self.defined = {}
         self.skin_class = skin_class
+        self.modified = set()
+
+    def notset(self, name):
+        """
+        Get whether a property has never been set by I{name}.
+        @param name: A property name.
+        @type name: str
+        @return: True if never been set.
+        @rtype: bool
+        """
+        return self.provider(name).__notset(name)
+            
+    def set(self, name, value):
+        """
+        Set the I{value} of a property by I{name}.
+        The value is validated against the definition and set
+        to the default when I{value} is None.
+        @param name: The property name.
+        @type name: str
+        @param value: The new property value.
+        @type value: any
+        @return: self
+        @rtype: L{Properties}
+        """
+        self.provider(name).__set(name, value)
+        return self
+    
+    def unset(self, name):
+        """
+        Unset a property by I{name}.
+        @param name: A property name.
+        @type name: str
+        @return: self
+        @rtype: L{Properties}
+        """
+        self.provider(name).__unset(name)
+        return self
+            
+    def get(self, name, *df):
+        """
+        Get the value of a property by I{name}.
+        @param name: The property name.
+        @type name: str
+        @param df: An optional value to be returned when the value
+            is not set
+        @type df: [1].
+        @return: The stored value, or I{df[0]} if not set.
+        @rtype: any 
+        """
+        return self.provider(name).__get(name, *df)
+    
+    def provider(self, name, history=None):
+        if isinstance(name, int):
+            return self
+        else:
+            return None
 
     def __notset(self, name):
         return not (name in self.defined)
@@ -476,13 +532,16 @@ class ListProperties(Properties):
         prev = self.defined[name]
         self.defined[name] = value
         d.linker.updated(self, prev, value)
+        self.modified.add(name)
 
     def __unset(self, name, value):
         del self.defined[name]
+        self.modified.remove(name)
 
     def __get(self, name, *df):
         if not (name in self.defined):
             self.defined[name] = self.skin_class()
+            self.modified.add(name)
         return self.defined[name]
 
 
@@ -502,9 +561,15 @@ class Skin(object):
             return
         self.__pts__.set(name, value)
         
+    def __setitem__(self, name, value):
+        self.__setattr__(name, value)
+
     def __getattr__(self, name):
         return self.__pts__.get(name)
     
+    def __getitem__(self, name):
+        return self.__getattr__(name)
+
     def __delattr__(self, name):
         return self.__pts__.unset(name)
 
@@ -513,8 +578,7 @@ class Skin(object):
     
     def __str__(self):
         return str(self.__pts__)
-    
-    
+
 class Unskin(object):
     def __new__(self, *args, **kwargs):
         return args[0].__pts__
@@ -536,11 +600,24 @@ class MultiSkin(object):
             return MultiSkin(candidates)
         return Unskin(self.__skins__[-1]).get(name)
     
-    __getitem__ = __getattr__
-
     def __setattr__(self, name, value):
         if name == '__skins__':
             super(MultiSkin, self).__setattr__(name, value)
+
+    def __iter__(self):
+        len = self.__len__()
+        return [self.__getattr__(i) for i in range(0, len)].__iter__()
+
+    def __len__(self):
+        keys = set()
+        for s in self.__skins__:
+            p = Unskin(s)
+            keys |= p.modified
+        if len(keys) == 0:
+            return 0
+        else:
+            return sorted(keys)[-1] + 1
+
 
 class Inspector:
     """

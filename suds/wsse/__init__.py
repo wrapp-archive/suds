@@ -104,7 +104,7 @@ class SecurityProcessor:
         if wsse.includeTimestamp and wsse.headerLayout != HEADER_LAYOUT_LAX_TIMESTAMP_LAST:
             root.append(Timestamp().xml())
         for t in wsse.tokens:
-            root.append(t.xml())
+            root.append(UsernameToken(t.username, t.password).xml())
         if wsse.includeTimestamp and wsse.headerLayout == HEADER_LAYOUT_LAX_TIMESTAMP_LAST:
             root.append(Timestamp().xml())
         return root

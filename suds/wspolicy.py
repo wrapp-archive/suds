@@ -92,7 +92,7 @@ class Policy(Object):
             if token.getChild("Policy").getChild("X509Token") is not None:
                 self.signatureRequired = True
                 self.signedParts.extend(self.buildParts(token.getChild("Policy").getChild("SignedParts")))
-        if (wsdl_policy.root.getChild("Addressing") is not None or wsdl_policy.root.getChild("UsingAddressing") is not None) and self.addressing == False:
+        if (wsdl_policy.root.getChild("Addressing") is not None or wsdl_policy.root.getChild("UsingAddressing") is not None) and self.addressing <> True:
             if wsdl_policy.root.getChild("Addressing") is not None:
                 optional = wsdl_policy.root.getChild("Addressing").get("Optional")
             else:

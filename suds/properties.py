@@ -464,6 +464,28 @@ class Properties:
         return self.str([])
 
 
+class ListProperties(Properties):
+    def __init__(self, skin_class):
+        self.defined = dict()
+        self.skin_class = skin_class
+
+    def __notset(self, name):
+        return not (name in self.defined)
+
+    def __set(self, name, value):
+        prev = self.defined[name]
+        self.defined[name] = value
+        d.linker.updated(self, prev, value)
+
+    def __unset(self, name, value):
+        del self.defined[name]
+
+    def __get(self, name, *df):
+        if not (name in self.defined):
+            self.defined[name] = self.skin_class()
+        return self.defined[name]
+
+
 class Skin(object):
     """
     The meta-programming I{skin} around the L{Properties} object.
@@ -496,8 +518,27 @@ class Skin(object):
 class Unskin(object):
     def __new__(self, *args, **kwargs):
         return args[0].__pts__
+
+
+class MultiSkin(object):
+    def __init__(self, skins):
+        self.skins = skins
+
+    def __getattr__(self, name):
+        candidates = []
+        for s in self.skins:
+            p = Unskin(s)
+            if not p.notset(name):
+                if isinstance(Skin, p.get(name)):
+                    candidates.append(s)
+                else:
+                    return p.get(name)
+        if len(candidates) > 0:
+            return MultiSkin(candidates)
+        return skins[-1].get(name)
     
-    
+    __getitem__ = __getattr__
+
 class Inspector:
     """
     Wrapper inspector.

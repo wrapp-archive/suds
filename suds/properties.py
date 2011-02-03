@@ -528,11 +528,10 @@ class MultiSkin(object):
         candidates = []
         for s in self.__skins__:
             p = Unskin(s)
-            if not p.notset(name):
-                if isinstance(p.get(name), Skin):
-                    candidates.append(p.get(name))
-                else:
-                    return p.get(name)
+            if isinstance(p.get(name), Skin):
+                candidates.append(p.get(name))
+            elif not p.notset(name):
+                return p.get(name)
         if len(candidates) > 0:
             return MultiSkin(candidates)
         return Unskin(self.__skins__[-1]).get(name)

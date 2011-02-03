@@ -179,20 +179,6 @@ class Policy(Object):
 
     def enforceOptions(self, options, location):
         if self.wsseEnabled:
-            if not options.wsse:
-                options.wsse = Security()
-            wsse = options.wsse
-            if self.usernameRequired and len(wsse.tokens) == 0:
-                raise Exception, 'WSDL policy requires username token, but no username token was specified in Client'
-            if self.signatureRequired and len(wsse.signatures) == 0:
-                raise Exception, 'WSDL policy requires signed message, but no signature was specified in Client'
-            if self.encryptionRequired and len(wsse.keys) == 0:
-                raise Exception, 'WSDL policy requires encrypted message, but no encryption keys were specified in Client'
-            if self.clientCertRequired and not isinstance(options.transport, HttpsClientCertAuthenticated):
-                raise Exception, 'WSDL policy requires client certificate authentication with HTTPS, but HttpsClientCertAuthenticated transport was not specified in Client'
-            wsse.includeTimestamp = self.includeTimestamp
-            wsse.encryptThenSign = self.encryptThenSign
-            wsse.signOnlyEntireHeadersAndBody = self.onlySignEntireHeadersAndBody
             if self.digestAlgorithm is not None:
                 for sig in wsse.signatures:
                     sig.digest = self.digestAlgorithm
@@ -202,10 +188,6 @@ class Policy(Object):
             if self.keyTransport is not None:
                 for key in wsse.keys:
                     key.keyTransport = self.keyTransport
-            if self.wsse11 is not None:
-                wsse.wsse11 = self.wsse11 
-            if self.headerLayout is not None:
-                wsse.headerLayout = self.headerLayout
             def create_signed_header_func(ns, name):
                 return lambda env: env.getChild("Header").getChildren(name, ns=(None, ns))
                     
@@ -226,13 +208,6 @@ class Policy(Object):
                     wsse.keys[0].encrypted_parts.append(lambda env: (env.getChild('Header').getChild('Security').getChild('Signature'), 'Element'))
             if self.signatureRequired and self.includeTimestamp:
                 wsse.signatures[0].signed_parts.append(lambda env: env.getChild("Header").getChild("Security").getChild("Timestamp"))
-        if self.addressing is not None:
-            options.wsaddr = self.addressing
-        if self.requiredTransports is not None:
-            for transport_scheme in self.requiredTransports:
-                if transport_scheme == location[:location.find(':')]:
-                    break
-                raise Exception, 'Specified transport is not allowed by WSDL policy'
 
     def enforceMessagePreSecurity(self, env):
         pass

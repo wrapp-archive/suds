@@ -530,7 +530,7 @@ class MultiSkin(object):
             p = Unskin(s)
             if not p.notset(name):
                 if isinstance(p.get(name), Skin):
-                    candidates.append(s)
+                    candidates.append(p.get(name))
                 else:
                     return p.get(name)
         if len(candidates) > 0:

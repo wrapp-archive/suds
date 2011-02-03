@@ -106,7 +106,7 @@ class Options(Skin):
             Definition('soapheaders', (), ()),
             Definition('wsse', suds.wsse.options.Options, suds.wsse.options.Options()),
             Definition('doctor', Doctor, None),
-            Definition('wsaddr', bool, True),
+            Definition('wsaddr', bool, False),
             Definition('xstq', bool, True),
             Definition('prefixes', bool, True),
             Definition('retxml', bool, False),

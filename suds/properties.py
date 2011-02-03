@@ -267,7 +267,7 @@ class Properties:
         @return: True if never been set.
         @rtype: bool
         """
-        self.provider(name).__notset(name)
+        return self.provider(name).__notset(name)
             
     def set(self, name, value):
         """
@@ -522,11 +522,11 @@ class Unskin(object):
 
 class MultiSkin(object):
     def __init__(self, skins):
-        self.skins = skins
+        self.__skins__ = skins
 
     def __getattr__(self, name):
         candidates = []
-        for s in self.skins:
+        for s in self.__skins__:
             p = Unskin(s)
             if not p.notset(name):
                 if isinstance(p.get(name), Skin):
@@ -535,9 +535,13 @@ class MultiSkin(object):
                     return p.get(name)
         if len(candidates) > 0:
             return MultiSkin(candidates)
-        return skins[-1].get(name)
+        return Unskin(self.__skins__[-1]).get(name)
     
     __getitem__ = __getattr__
+
+    def __setattr__(self, name, value):
+        if name == '__skins__':
+            super(MultiSkin, self).__setattr__(name, value)
 
 class Inspector:
     """

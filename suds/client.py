@@ -108,7 +108,7 @@ class Client(object):
         options.cache = ObjectCache(days=1)
         self.options = options
         combined_options = MultiSkin([options])
-        self.combined_options = options
+        self.combined_options = combined_options
         self.set_options(**kwargs)
         reader = DefinitionsReader(combined_options, Definitions)
         self.wsdl = reader.open(url)
@@ -179,8 +179,8 @@ class Client(object):
                 pass
         clone = Uninitialized()
         clone.options = Options()
-        cp = Unskin(clone.client_options)
-        mp = Unskin(self.client_options)
+        cp = Unskin(clone.options)
+        mp = Unskin(self.options)
         cp.update(deepcopy(mp))
         clone.combined_options = MultiSkin([clone.options])
         clone.wsdl = self.wsdl

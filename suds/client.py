@@ -43,7 +43,6 @@ from urlparse import urlparse
 from copy import deepcopy
 from suds.plugin import PluginContainer
 from logging import getLogger
-from suds.wspolicy import *
 
 log = getLogger(__name__)
 
@@ -713,7 +712,7 @@ class SoapClient:
         # reply is processed, all encrypted data blocks have been decrypted
         self.enforce_encryption_policy_incoming(replyroot)
         if len(reply) > 0:
-            if self.options.wsse:
+            if self.options.wsse.enabled:
                 SecurityProcessor().processIncomingMessage(replyroot.getChild('Envelope'), self.options.wsse)
             reply, result = binding.get_reply(self.method, replyroot)
             self.enforce_policy_incoming(reply)

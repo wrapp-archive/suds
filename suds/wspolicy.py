@@ -21,6 +21,7 @@ The I{wspolicy} module provides support for WS-Policy.
 from suds.sudsobject import Object, merge
 from suds.wsse.xmlsec import *
 from suds.wsse import *
+from suds.transport.options import *
 from suds.options import Options
 
 def override(base_policy, override_policy):
@@ -126,8 +127,19 @@ class Policy(Object):
 
     def buildOptions(self):
         options = Options()
+        options.wsse.enabled = self.wsseEnabled
+        if self.wsseEnabled:
+            options.wsse.includeTimestamp = self.includeTimestamp
+            options.wsse.encryptThenSign = self.encryptThenSign
+            options.wsse.signOnlyEntireHeadersAndBody = self.onlySignEntireHeadersAndBody
+            if self.wsse11 is not None:
+                options.wsse.wsse11 = self.wsse11 
+            if self.headerLayout is not None:
+                options.wsse.headerLayout = self.headerLayout
         if self.addressing is not None:
             options.wsaddr = self.addressing
+        if self.clientCertRequired:
+            options.transport.protocol = PROTOCOL_HTTPS_CERT_AUTH
         return options
 
     def enforceOptions(self, options, location):

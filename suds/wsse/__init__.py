@@ -85,7 +85,7 @@ class SecurityProcessor:
         soapenv.walk(removeEncryptedHeaders)
         
     def signMessage(self, env, wsse):
-        env.getChild('Header').getChild('Security').insert(reduce(lambda x,y: x + y.signMessage(env, wsse.signOnlyEntireHeadersAndBody), wsse.signatures, []), self.insertPosition(wsse))
+        env.getChild('Header').getChild('Security').insert(reduce(lambda x,y: x + Signature(y).signMessage(env, wsse.signOnlyEntireHeadersAndBody), wsse.signatures, []), self.insertPosition(wsse))
 
     def encryptMessage(self, env, wsse):
         env.getChild('Header').getChild('Security').insert([k.encryptMessage(env, wsse.wsse11) for k in wsse.keys], self.insertPosition(wsse))
@@ -279,13 +279,13 @@ class Signature(Object):
                 continue
             raise Exception, 'A descendant of a header or the body was signed, but only entire headers and body were permitted to be signed'
 
-    def __init__(self, key, x509_issuer_serial):
+    def __init__(self, options):
         Object.__init__(self)
-        self.key = key
-        self.x509_issuer_serial = x509_issuer_serial
-        self.signed_parts = []
-        self.digest = xmlsec.DIGEST_SHA1
-        self.keyReference = xmlsec.KEY_REFERENCE_BINARY_SECURITY_TOKEN
+        self.key = options.key
+        self.x509_issuer_serial = options.cert
+        self.signed_parts = options.signedparts
+        self.digest = options.digest
+        self.keyReference = options.keyreference
 
 class Key(Object):
     def encryptMessage(self, env, use_encrypted_header=False):

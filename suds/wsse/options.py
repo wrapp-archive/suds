@@ -20,6 +20,7 @@ The I{options} module provides options for WS-Security.
 
 from suds.properties import *
 from pki import Keystore
+from suds.wsse.xmlsec import *
 
 HEADER_LAYOUT_STRICT = 'Strict'
 HEADER_LAYOUT_LAX = 'Lax'
@@ -38,7 +39,7 @@ class Options(Skin):
             Definition('wsse11', bool, False),
             Definition('keystore', Keystore, Keystore()),
             Definition('tokens', Skin, Skin(ListProperties(TokenOptions))),
-            Definition('signatures', (list, tuple), []),
+            Definition('signatures', Skin, Skin(ListProperties(SignatureOptions))), 
             Definition('keys', (list, tuple), []),
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))
@@ -49,5 +50,17 @@ class TokenOptions(Skin):
         definitions = [
             Definition('username', basestring, None),
             Definition('password', basestring, None),
+        ]
+        Skin.__init__(self, Properties(domain, definitions, kwargs))
+
+class SignatureOptions(Skin):
+    def __init__(self, **kwargs):
+        domain = __name__
+        definitions = [
+            Definition('key', (), None),
+            Definition('cert', (), None),
+            Definition('digest', basestring, DIGEST_SHA1),
+            Definition('keyreference', basestring, KEY_REFERENCE_BINARY_SECURITY_TOKEN),
+            Definition('signedparts', (list, tuple), []),
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))

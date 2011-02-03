@@ -171,6 +171,29 @@ class Policy(Object):
                 options.wsse.wsse11 = self.wsse11 
             if self.headerLayout is not None:
                 options.wsse.headerLayout = self.headerLayout
+
+            def create_signed_header_func(ns, name):
+                return lambda env: env.getChild("Header").getChildren(name, ns=(None, ns))
+                    
+            def create_encrypted_header_func(ns, name):
+                return lambda env: (env.getChild("Header").getChildren(name, ns=(None, ns)), 'Element')
+                    
+            index = 0
+            for sig in self.signatures:
+                options.wsse.signatures[index].digest = self.digestAlgorithm
+
+                signed_parts = []
+                for part in sig.signedParts:
+                    if part[0] == 'body':
+                        signed_parts.append(lambda env: env.getChild("Body"))
+                    elif part[0] == 'header':
+                        signed_parts.append(create_signed_header_func(part[1], part[2]))
+                
+                options.wsse.signatures[index].signedparts = signed_parts
+
+                index = index + 1
+            if self.includeTimestamp and len(self.signatures) > 0:
+                options.wsse.signatures[0].signedparts.append(lambda env: env.getChild("Header").getChild("Security").getChild("Timestamp"))
         if self.addressing is not None:
             options.wsaddr = self.addressing
         if self.clientCertRequired:
@@ -179,26 +202,12 @@ class Policy(Object):
 
     def enforceOptions(self, options, location):
         if self.wsseEnabled:
-            if self.digestAlgorithm is not None:
-                for sig in wsse.signatures:
-                    sig.digest = self.digestAlgorithm
             if self.blockEncryption is not None:
                 for key in wsse.keys:
                     key.blockEncryption = self.blockEncryption
             if self.keyTransport is not None:
                 for key in wsse.keys:
                     key.keyTransport = self.keyTransport
-            def create_signed_header_func(ns, name):
-                return lambda env: env.getChild("Header").getChildren(name, ns=(None, ns))
-                    
-            def create_encrypted_header_func(ns, name):
-                return lambda env: (env.getChild("Header").getChildren(name, ns=(None, ns)), 'Element')
-                    
-            for part in self.signedParts:
-                if part[0] == 'body':
-                    wsse.signatures[0].signed_parts.append(lambda env: env.getChild("Body"))
-                elif part[0] == 'header':
-                    wsse.signatures[0].signed_parts.append(create_signed_header_func(part[1], part[2]))
             for part in self.encryptedParts:
                 if part[0] == 'body':
                     wsse.keys[0].encrypted_parts.append(lambda env: (env.getChild("Body"), "Content"))
@@ -206,8 +215,6 @@ class Policy(Object):
                     wsse.keys[0].encrypted_parts.append(create_encrypted_header_func(part[1], part[2]))
                 elif part[0] == 'signature':
                     wsse.keys[0].encrypted_parts.append(lambda env: (env.getChild('Header').getChild('Security').getChild('Signature'), 'Element'))
-            if self.signatureRequired and self.includeTimestamp:
-                wsse.signatures[0].signed_parts.append(lambda env: env.getChild("Header").getChild("Security").getChild("Timestamp"))
 
     def enforceMessagePreSecurity(self, env):
         pass

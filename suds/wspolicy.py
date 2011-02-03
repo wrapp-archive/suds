@@ -21,6 +21,7 @@ The I{wspolicy} module provides support for WS-Policy.
 from suds.sudsobject import Object, merge
 from suds.wsse.xmlsec import *
 from suds.wsse import *
+from suds.options import Options
 
 def override(base_policy, override_policy):
     new_policy = Policy()
@@ -122,6 +123,12 @@ class Policy(Object):
                     # There are other more obscure options specified in WS-SecurityPolicy, but they are not supported yet
                     pass
         return parts
+
+    def buildOptions(self):
+        options = Options()
+        if self.addressing is not None:
+            options.wsaddr = self.addressing
+        return options
 
     def enforceOptions(self, options, location):
         if self.wsseEnabled:

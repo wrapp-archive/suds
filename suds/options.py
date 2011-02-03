@@ -19,11 +19,11 @@ Suds basic options classes.
 """
 
 from suds.properties import *
-from suds.wsse import Security
 from suds.xsd.doctor import Doctor
 from suds.transport import Transport
 from suds.cache import Cache, NoCache
 import suds.transport.options
+import suds.wsse.options
 
 
 class Options(Skin):
@@ -104,7 +104,7 @@ class Options(Skin):
             Definition('port', (int, basestring), None),
             Definition('location', basestring, None),
             Definition('soapheaders', (), ()),
-            Definition('wsse', Security, None),
+            Definition('wsse', suds.wsse.options.Options, suds.wsse.options.Options()),
             Definition('doctor', Doctor, None),
             Definition('wsaddr', bool, True),
             Definition('xstq', bool, True),
@@ -117,8 +117,3 @@ class Options(Skin):
             Definition('nosend', bool, False),
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))
-
-class InheritableOptions(Skin):
-    def __init__(self, options):
-        properties = [Unskin(o) for o in options]
-        Skin.__init__(self, InheritableProperties(properties))

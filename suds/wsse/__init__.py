@@ -26,6 +26,7 @@ from suds.sax.date import UTC
 from datetime import datetime, timedelta
 import xmlsec
 from pki import Keystore
+from options import *
 
 try:
     from hashlib import md5
@@ -44,57 +45,9 @@ wsuns = \
     ('wsu',
      'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
 
-HEADER_LAYOUT_STRICT = 'Strict'
-HEADER_LAYOUT_LAX = 'Lax'
-HEADER_LAYOUT_LAX_TIMESTAMP_FIRST = 'LaxTimestampFirst'
-HEADER_LAYOUT_LAX_TIMESTAMP_LAST = 'LaxTimestampLast'
-
 def generate_unique_id(do_not_pass_this=[0]):
     do_not_pass_this[0] = do_not_pass_this[0] + 1
     return do_not_pass_this[0]
-
-class Security(Object):
-    """
-    WS-Security object.
-    @ivar tokens: A list of security tokens
-    @type tokens: [L{Token},...]
-    @ivar signatures: A list of signatures.
-    @type signatures: TBD
-    @ivar references: A list of references.
-    @type references: TBD
-    @ivar keys: A list of encryption keys.
-    @type keys: TBD
-    """
-    
-    def __init__(self):
-        """ """
-        Object.__init__(self)
-        self.mustUnderstand = True
-        self.includeTimestamp = True
-        self.encryptThenSign = False
-        self.headerLayout = HEADER_LAYOUT_LAX
-        self.wsse11 = False
-        self.tokens = []
-        self.signatures = []
-        self.references = []
-        self.keys = []
-        self.keystore = Keystore()
-
-    def xml(self):
-        """
-        Get xml representation of the object.
-        @return: The root node.
-        @rtype: L{Element}
-        """
-        root = Element('Security', ns=wssens)
-        root.set('mustUnderstand', str(self.mustUnderstand).lower())
-        if self.includeTimestamp and self.headerLayout != HEADER_LAYOUT_LAX_TIMESTAMP_LAST:
-            root.append(Timestamp().xml())
-        for t in self.tokens:
-            root.append(t.xml())
-        if self.includeTimestamp and self.headerLayout == HEADER_LAYOUT_LAX_TIMESTAMP_LAST:
-            root.append(Timestamp().xml())
-        return root
 
 class SecurityProcessor:
     def processIncomingMessage(self, soapenv, wsse):
@@ -111,7 +64,7 @@ class SecurityProcessor:
 
     def processOutgoingMessage(self, soapenv, wsse):
         soapenv.addPrefix('wsu', 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
-        soapenv.getChild('Header').insert(wsse.xml(), 0)
+        soapenv.getChild('Header').insert(self.xml(wsse), 0)
         if wsse.encryptThenSign:
             self.encryptMessage(soapenv, wsse)
             self.signMessage(soapenv, wsse)
@@ -138,6 +91,22 @@ class SecurityProcessor:
 
     def insertPosition(self, wsse):
         return len(wsse.tokens) + (wsse.includeTimestamp and wsse.headerLayout != HEADER_LAYOUT_LAX_TIMESTAMP_LAST) and 1 or 0
+
+    def xml(self, wsse):
+        """
+        Get xml representation of the object.
+        @return: The root node.
+        @rtype: L{Element}
+        """
+        root = Element('Security', ns=wssens)
+        root.set('mustUnderstand', 'true')
+        if wsse.includeTimestamp and wsse.headerLayout != HEADER_LAYOUT_LAX_TIMESTAMP_LAST:
+            root.append(Timestamp().xml())
+        for t in wsse.tokens:
+            root.append(t.xml())
+        if wsse.includeTimestamp and wsse.headerLayout == HEADER_LAYOUT_LAX_TIMESTAMP_LAST:
+            root.append(Timestamp().xml())
+        return root
 
 class Token(Object):
     """ I{Abstract} security token. """

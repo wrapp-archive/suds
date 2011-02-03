@@ -117,7 +117,7 @@ class Policy(Object):
             if token.getChild("Policy").getChild("UsernameToken") is not None:
                 token = Object()
                 self.tokens.append(token)
-            if token.getChild("Policy").getChild("X509Token") is not None:
+            elif token.getChild("Policy").getChild("X509Token") is not None:
                 signature = Object()
                 signature.signedParts = self.buildParts(token.getChild("Policy").getChild("SignedParts"))
                 self.signatures.append(signature)

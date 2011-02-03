@@ -753,8 +753,7 @@ class SoapClient:
             return (status, None)
 
     def location(self):
-        p = Unskin(self.options)
-        return p.get('location', self.method.location)
+        return self.options.location or self.method.location
     
     def last_sent(self, d=None):
         key = 'tx'

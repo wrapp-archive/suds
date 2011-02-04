@@ -23,6 +23,7 @@ from suds.wsse.xmlsec import *
 from suds.wsse import *
 from suds.transport.options import *
 from suds.options import Options
+from suds.sax.date import DateTime
 
 def override(base_policy, override_policy):
     new_policy = Policy()
@@ -272,8 +273,10 @@ class Policy(Object):
         pass
 
     def enforceMessagePostSecurity(self, env):
-        if self.includeTimestamp:
-            if env.getChild('Header') is None or env.getChild('Header').getChild('Security') is None or env.getChild('Header').getChild('Security').getChild('Timestamp') is None:
-                raise Exception, 'WSDL policy required Timestamp, but Timestamp was not present in reply'
-
-        
+        timestamp = env.childAtPath('Header/Security/Timestamp')
+        if self.includeTimestamp and timestamp is None:
+            raise Exception, 'WSDL policy required Timestamp, but Timestamp was not present in reply'
+        if timestamp.getChild('Expires') is not None:
+            expiry_time = DateTime(timestamp.getChild('Expires').getText()).datetime
+            if expiry_time < datetime.now():
+                raise Exception, 'Message expiration time has passed'

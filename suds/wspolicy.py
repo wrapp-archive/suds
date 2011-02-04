@@ -180,7 +180,8 @@ class Policy(Object):
                     
             index = 0
             for sig in self.signatures:
-                options.wsse.signatures[index].digest = self.digestAlgorithm
+                if self.digestAlgorithm is not None:
+                    options.wsse.signatures[index].digest = self.digestAlgorithm
 
                 signed_parts = []
                 for part in sig.signedParts:
@@ -194,27 +195,32 @@ class Policy(Object):
                 index = index + 1
             if self.includeTimestamp and len(self.signatures) > 0:
                 options.wsse.signatures[0].signedparts.append(lambda env: env.getChild("Header").getChild("Security").getChild("Timestamp"))
+
+            index = 0
+            for key in self.keys:
+                if self.blockEncryption is not None:
+                    options.wsse.keys[index].blockencryption = self.blockEncryption
+                if self.keyTransport is not None:
+                    options.wsse.keys[index].keytransport = self.keyTransport
+
+                encrypted_parts = []
+                for part in key.encryptedParts:
+                    if part[0] == 'body':
+                        encrypted_parts.append(lambda env: (env.getChild("Body"), "Content"))
+                    elif part[0] == 'header':
+                        encrypted_parts.append(create_encrypted_header_func(part[1], part[2]))
+                    elif part[0] == 'signature':
+                        encrypted_parts.append(lambda env: (env.getChild('Header').getChild('Security').getChild('Signature'), 'Element'))
+
+                options.wsse.keys[index].encryptedparts = encrypted_parts
+
+                index = index + 1
+
         if self.addressing is not None:
             options.wsaddr = self.addressing
         if self.clientCertRequired:
             options.transport.protocol = PROTOCOL_HTTPS_CERT_AUTH
         return options
-
-    def enforceOptions(self, options, location):
-        if self.wsseEnabled:
-            if self.blockEncryption is not None:
-                for key in wsse.keys:
-                    key.blockEncryption = self.blockEncryption
-            if self.keyTransport is not None:
-                for key in wsse.keys:
-                    key.keyTransport = self.keyTransport
-            for part in self.encryptedParts:
-                if part[0] == 'body':
-                    wsse.keys[0].encrypted_parts.append(lambda env: (env.getChild("Body"), "Content"))
-                elif part[0] == 'header':
-                    wsse.keys[0].encrypted_parts.append(create_encrypted_header_func(part[1], part[2]))
-                elif part[0] == 'signature':
-                    wsse.keys[0].encrypted_parts.append(lambda env: (env.getChild('Header').getChild('Security').getChild('Signature'), 'Element'))
 
     def enforceMessagePreSecurity(self, env):
         pass

@@ -88,7 +88,7 @@ class SecurityProcessor:
         env.getChild('Header').getChild('Security').insert(reduce(lambda x,y: x + Signature(y).signMessage(env, wsse.signOnlyEntireHeadersAndBody), wsse.signatures, []), self.insertPosition(wsse))
 
     def encryptMessage(self, env, wsse):
-        env.getChild('Header').getChild('Security').insert([k.encryptMessage(env, wsse.wsse11) for k in wsse.keys], self.insertPosition(wsse))
+        env.getChild('Header').getChild('Security').insert([Key(k).encryptMessage(env, wsse.wsse11) for k in wsse.keys], self.insertPosition(wsse))
 
     def insertPosition(self, wsse):
         return len(wsse.tokens) + (wsse.includeTimestamp and wsse.headerLayout != HEADER_LAYOUT_LAX_TIMESTAMP_LAST) and 1 or 0
@@ -316,10 +316,10 @@ class Key(Object):
             enc_hdr[0].unset('Id')
         return key
         
-    def __init__(self, cert):
+    def __init__(self, options):
         Object.__init__(self)
-        self.cert = cert
-        self.encrypted_parts = []
-        self.blockEncryption = xmlsec.BLOCK_ENCRYPTION_AES128_CBC
-        self.keyTransport = xmlsec.KEY_TRANSPORT_RSA_OAEP
-        self.keyReference = xmlsec.KEY_REFERENCE_ISSUER_SERIAL
+        self.cert = options.cert
+        self.encrypted_parts = options.encryptedparts
+        self.blockEncryption = options.blockencryption
+        self.keyTransport = options.keytransport 
+        self.keyReference = options.keyreference

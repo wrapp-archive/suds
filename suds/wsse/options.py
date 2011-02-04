@@ -40,7 +40,7 @@ class Options(Skin):
             Definition('keystore', Keystore, Keystore()),
             Definition('tokens', Skin, Skin(ListProperties(TokenOptions))),
             Definition('signatures', Skin, Skin(ListProperties(SignatureOptions))), 
-            Definition('keys', (list, tuple), []),
+            Definition('keys', Skin, Skin(ListProperties(KeyOptions))), 
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))
 
@@ -62,5 +62,17 @@ class SignatureOptions(Skin):
             Definition('digest', basestring, DIGEST_SHA1),
             Definition('keyreference', basestring, KEY_REFERENCE_BINARY_SECURITY_TOKEN),
             Definition('signedparts', (list, tuple), []),
+        ]
+        Skin.__init__(self, Properties(domain, definitions, kwargs))
+
+class KeyOptions(Skin):
+    def __init__(self, **kwargs):
+        domain = __name__
+        definitions = [
+            Definition('cert', (), None),
+            Definition('encryptedparts', (list, tuple), []),
+            Definition('blockencryption', basestring, BLOCK_ENCRYPTION_AES128_CBC),
+            Definition('keytransport', basestring, KEY_TRANSPORT_RSA_OAEP),
+            Definition('keyreference', basestring, KEY_REFERENCE_ISSUER_SERIAL),
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))

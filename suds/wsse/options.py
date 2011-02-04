@@ -71,6 +71,7 @@ class KeyOptions(Skin):
         definitions = [
             Definition('cert', (), None),
             Definition('encryptedparts', (list, tuple), []),
+            Definition('secondpassencryptedparts', (list, tuple), []),
             Definition('blockencryption', basestring, BLOCK_ENCRYPTION_AES128_CBC),
             Definition('keytransport', basestring, KEY_TRANSPORT_RSA_OAEP),
             Definition('keyreference', basestring, KEY_REFERENCE_ISSUER_SERIAL),

@@ -55,15 +55,19 @@ class Policy(Object):
     def addFromWsdl(self, wsdl_policy):
         baseSignedParts = self.buildParts(wsdl_policy.signed_parts)
         baseEncryptedParts = self.buildParts(wsdl_policy.encrypted_parts)
+        secondPassEncryptedParts = []
 
         if wsdl_policy.binding:
             self.wsseEnabled = True
             if wsdl_policy.binding.getChild("IncludeTimestamp") is not None:
                 self.includeTimestamp = True
-            if wsdl_policy.binding.getChild("EncryptSignature") is not None:
-                baseEncryptedParts.append(('signature',))
             if wsdl_policy.binding.getChild("EncryptBeforeSigning") is not None:
                 self.encryptThenSign = True
+            if wsdl_policy.binding.getChild("EncryptSignature") is not None:
+                if self.encryptThenSign:
+                    secondPassEncryptedParts.append(('signature',))
+                else:
+                    baseEncryptedParts.append(('signature',))
             if wsdl_policy.binding.getChild("OnlySignEntireHeadersAndBody") is not None:
                 self.onlySignEntireHeadersAndBody = True
             if wsdl_policy.binding.getChild("Layout") is not None:
@@ -91,6 +95,7 @@ class Policy(Object):
                 key = Object()
                 token = wsdl_policy.binding.getChild("RecipientToken") or wsdl_policy.binding.getChild("ProtectionToken")
                 key.encryptedParts = self.buildParts(token.getChild("Policy").getChild("EncryptedParts"))
+                key.secondPassEncryptedParts = []
                 self.keys.append(key)
             if self.blockEncryption is None:
                 algorithm_suite = wsdl_policy.binding.getChild("AlgorithmSuite")
@@ -138,6 +143,7 @@ class Policy(Object):
             sig.signedParts.extend(baseSignedParts)
         for key in self.keys:
             key.encryptedParts.extend(baseEncryptedParts)
+            key.secondPassEncryptedParts.extend(secondPassEncryptedParts)
 
         if wsdl_policy.root.getChild("Wss10") is not None:
             self.wsse11 = False
@@ -212,6 +218,17 @@ class Policy(Object):
                         encrypted_parts.append(lambda env: (env.getChild('Header').getChild('Security').getChild('Signature'), 'Element'))
 
                 options.wsse.keys[index].encryptedparts = encrypted_parts
+
+                second_pass_encrypted_parts = []
+                for part in key.secondPassEncryptedParts:
+                    if part[0] == 'body':
+                        second_pass_encrypted_parts.append(lambda env: (env.getChild("Body"), "Content"))
+                    elif part[0] == 'header':
+                        second_pass_encrypted_parts.append(create_encrypted_header_func(part[1], part[2]))
+                    elif part[0] == 'signature':
+                        second_pass_encrypted_parts.append(lambda env: (env.getChild('Header').getChild('Security').getChild('Signature'), 'Element'))
+
+                options.wsse.keys[index].secondpassencryptedparts = second_pass_encrypted_parts
 
                 index = index + 1
 

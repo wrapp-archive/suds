@@ -69,6 +69,7 @@ class SecurityProcessor:
         if wsse.encryptThenSign:
             self.encryptMessage(soapenv, wsse)
             self.signMessage(soapenv, wsse)
+            self.encryptMessageSecondPass(soapenv, wsse)
         else:
             self.signMessage(soapenv, wsse)
             self.encryptMessage(soapenv, wsse)
@@ -89,6 +90,9 @@ class SecurityProcessor:
 
     def encryptMessage(self, env, wsse):
         env.getChild('Header').getChild('Security').insert([Key(k).encryptMessage(env, wsse.wsse11) for k in wsse.keys], self.insertPosition(wsse))
+
+    def encryptMessageSecondPass(self, env, wsse):
+        env.getChild('Header').getChild('Security').insert([Key(k, True).encryptMessage(env, wsse.wsse11) for k in wsse.keys], self.insertPosition(wsse))
 
     def insertPosition(self, wsse):
         return len(wsse.tokens) + (wsse.includeTimestamp and wsse.headerLayout != HEADER_LAYOUT_LAX_TIMESTAMP_LAST) and 1 or 0
@@ -316,10 +320,10 @@ class Key(Object):
             enc_hdr[0].unset('Id')
         return key
         
-    def __init__(self, options):
+    def __init__(self, options, second_pass=False):
         Object.__init__(self)
         self.cert = options.cert
-        self.encrypted_parts = options.encryptedparts
+        self.encrypted_parts = second_pass and options.secondpassencryptedparts or options.encryptedparts
         self.blockEncryption = options.blockencryption
         self.keyTransport = options.keytransport 
         self.keyReference = options.keyreference

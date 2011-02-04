@@ -89,11 +89,27 @@ class Policy(Object):
                 if token.getChild("Policy").getChild("X509Token") is not None:
                     signature = Object()
                     signature.signedParts = self.buildParts(token.getChild("Policy").getChild("SignedParts"))
+                    # This would technically be the correct behavior, but WCF specifies that thumbprint references
+                    # are supported, but it can't use them for a primary signature.  Support for BinarySecurityTokens
+                    # is always required, so just use them
+                    #if token.getChild("Policy").getChild("X509Token").getChild("Policy").getChild("RequireThumbprintReference") is not None:
+                    #    signature.keyReference = KEY_REFERENCE_FINGERPRINT
+                    #elif token.getChild("Policy").getChild("X509Token").getChild("Policy").getChild("RequireIssuerSerialReference") is not None:
+                    #    signature.keyReference = KEY_REFERENCE_ISSUER_SERIAL
+                    #else:
+                    #    signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
+                    signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
                     self.signatures.append(signature)
             if (wsdl_policy.binding.getChild("InitiatorToken") is not None and wsdl_policy.binding.getChild("RecipientToken") is not None) or \
                 wsdl_policy.binding.getChild("ProtectionToken") is not None:
                 key = Object()
                 token = wsdl_policy.binding.getChild("RecipientToken") or wsdl_policy.binding.getChild("ProtectionToken")
+                if token.getChild("Policy").getChild("X509Token").getChild("Policy").getChild("RequireThumbprintReference") is not None:
+                    key.keyReference = KEY_REFERENCE_FINGERPRINT
+                elif token.getChild("Policy").getChild("X509Token").getChild("Policy").getChild("RequireIssuerSerialReference") is not None:
+                    key.keyReference = KEY_REFERENCE_ISSUER_SERIAL
+                else:
+                    key.keyReference = KEY_REFERENCE_ISSUER_SERIAL
                 key.encryptedParts = self.buildParts(token.getChild("Policy").getChild("EncryptedParts"))
                 key.secondPassEncryptedParts = []
                 self.keys.append(key)
@@ -126,6 +142,16 @@ class Policy(Object):
             elif token.getChild("Policy").getChild("X509Token") is not None:
                 signature = Object()
                 signature.signedParts = self.buildParts(token.getChild("Policy").getChild("SignedParts"))
+                # This would technically be the correct behavior, but WCF specifies that thumbprint references
+                # are supported, but it can't use them for a primary signature.  Support for BinarySecurityTokens
+                # is always required, so just use them
+                #if token.getChild("Policy").getChild("X509Token").getChild("Policy").getChild("RequireThumbprintReference") is not None:
+                #    signature.keyReference = KEY_REFERENCE_FINGERPRINT
+                #elif token.getChild("Policy").getChild("X509Token").getChild("Policy").getChild("RequireIssuerSerialReference") is not None:
+                #    signature.keyReference = KEY_REFERENCE_ISSUER_SERIAL
+                #else:
+                #    signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
+                signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
                 self.signatures.append(signature)
 
         if (wsdl_policy.root.getChild("Addressing") is not None or wsdl_policy.root.getChild("UsingAddressing") is not None) and self.addressing <> True:
@@ -187,6 +213,8 @@ class Policy(Object):
             for sig in self.signatures:
                 if self.digestAlgorithm is not None:
                     options.wsse.signatures[index].digest = self.digestAlgorithm
+                if sig.keyReference is not None:
+                    options.wsse.signatures[index].keyreference = sig.keyReference
 
                 signed_parts = []
                 for part in sig.signedParts:
@@ -207,6 +235,8 @@ class Policy(Object):
                     options.wsse.keys[index].blockencryption = self.blockEncryption
                 if self.keyTransport is not None:
                     options.wsse.keys[index].keytransport = self.keyTransport
+                if key.keyReference is not None:
+                    options.wsse.keys[index].keyreference = key.keyReference
 
                 encrypted_parts = []
                 for part in key.encryptedParts:

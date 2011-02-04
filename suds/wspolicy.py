@@ -51,16 +51,17 @@ class Policy(Object):
         self.tokens = []
         self.signatures = []
         self.keys = []
-        self.signedParts = []
-        self.encryptedParts = []
 
     def addFromWsdl(self, wsdl_policy):
+        baseSignedParts = self.buildParts(wsdl_policy.signed_parts)
+        baseEncryptedParts = self.buildParts(wsdl_policy.encrypted_parts)
+
         if wsdl_policy.binding:
             self.wsseEnabled = True
             if wsdl_policy.binding.getChild("IncludeTimestamp") is not None:
                 self.includeTimestamp = True
             if wsdl_policy.binding.getChild("EncryptSignature") is not None:
-                self.encryptedParts.append(('signature',))
+                baseEncryptedParts.append(('signature',))
             if wsdl_policy.binding.getChild("EncryptBeforeSigning") is not None:
                 self.encryptThenSign = True
             if wsdl_policy.binding.getChild("OnlySignEntireHeadersAndBody") is not None:
@@ -133,8 +134,6 @@ class Policy(Object):
             elif optional == "true":
                 self.addressing = None # use what the user specifies
 
-        baseSignedParts = self.buildParts(wsdl_policy.signed_parts)
-        baseEncryptedParts = self.buildParts(wsdl_policy.encrypted_parts)
         for sig in self.signatures:
             sig.signedParts.extend(baseSignedParts)
         for key in self.keys:

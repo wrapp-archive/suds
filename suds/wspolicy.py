@@ -130,7 +130,7 @@ class Policy(Object):
                         if "Sha256" in algorithm_policy_name:
                             self.digestAlgorithm = DIGEST_SHA256
                         else:
-                            self.digestAlogrithm = DIGEST_SHA1
+                            self.digestAlgorithm = DIGEST_SHA1
                         if "Rsa15" in algorithm_policy_name:
                             self.keyTransport = KEY_TRANSPORT_RSA_1_5
                         else:

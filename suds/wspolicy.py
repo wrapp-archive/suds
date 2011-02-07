@@ -51,6 +51,7 @@ class Policy(Object):
         self.tokens = []
         self.signatures = []
         self.keys = []
+	self.wsse11 = None
 
     def addFromWsdl(self, wsdl_policy):
         baseSignedParts = self.buildParts(wsdl_policy.signed_parts)
@@ -174,8 +175,6 @@ class Policy(Object):
             self.wsse11 = False
         elif wsdl_policy.root.getChild("Wss11") is not None:
             self.wsse11 = True
-        else:
-            self.wsse11 = None
 
     def buildParts(self, parts_element):
         parts = []

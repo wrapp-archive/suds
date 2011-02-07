@@ -40,7 +40,6 @@ class Policy(Object):
         self.headerLayout = None
         self.onlySignEntireHeadersAndBody = False
         self.clientCertRequired = False
-        self.requiredTransports = None
         self.blockEncryption = None
         self.digestAlgorithm = None
         self.keyTransport = None
@@ -78,7 +77,6 @@ class Policy(Object):
                 transport_token = wsdl_policy.binding.getChild("TransportToken")
                 if transport_token is not None:
                     if transport_token.getChild("Policy").getChild("HttpsToken") is not None:
-                        self.requiredTransports = ['https']
                         https_token = transport_token.getChild("Policy").getChild("HttpsToken")
                         client_cert_req = https_token.get("RequireClientCertificate")
                         if client_cert_req is None or client_cert_req == "false":

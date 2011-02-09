@@ -277,3 +277,39 @@ class Policy(Object):
             expiry_time = DateTime(timestamp.getChild('Expires').getText()).datetime
             if expiry_time < datetime.now():
                 raise Exception, 'Message expiration time has passed'
+
+        id_blocks = dict()
+        
+        def collectSignedDataBlock(elt):
+            if not elt.get("Id", ns=wsuns):
+                return
+            
+            id_blocks[elt.get("Id", ns=wsuns)] = elt
+
+        env.walk(collectSignedDataBlock)
+
+        signed_data_blocks = set()
+        for sig_elt in env.getChild("Header").getChild("Security").getChildren("Signature", ns=dsns):
+            for signed_part in sig_elt.getChild("SignedInfo", ns=dsns).getChildren("Reference", ns=dsns):
+                signed_part_id = signed_part.get("URI")
+
+                if not signed_part_id[0] == "#":
+                    raise Exception, "Cannot handle non-local data references"
+                signed_data_blocks.add(id(id_blocks[signed_part_id[1:]]))
+
+        policy_signed_blocks = set()
+        for sig in self.signatures:
+            for part in sig.signedParts:
+                if part[0] == 'body':
+                    policy_signed_blocks.add(id(env.getChild("Body")))
+                elif part[0] == 'header':
+                    for x in env.getChild("Header").getChildren(part[2], ns=(None, part[1])):
+                        policy_signed_blocks.add(id(x))
+                elif part[0] == 'signature':
+                    policy_signed_blocks.add(id(env.getChild("Header").getChild("Security").getChild("Signature")))
+        if self.includeTimestamp and len(self.signatures) > 0:
+            policy_signed_blocks.add(id(env.getChild("Header").getChild("Security").getChild("Timestamp")))
+
+        if not policy_signed_blocks <= signed_data_blocks:
+            raise Exception, 'Policy specified signed parts that were not signed in the response'
+

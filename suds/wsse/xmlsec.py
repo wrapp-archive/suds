@@ -342,6 +342,9 @@ def decryptMessage(env, keystore):
         enc_data_blocks[elt.get("Id")] = elt
 
     env.walk(collectEncryptedDataBlock)
+
+    decrypted_elements = []
+
     for key_elt in env.getChild("Header").getChild("Security").getChildren("EncryptedKey", ns=wsencns):
         key_transport_method = key_elt.getChild("EncryptionMethod").get("Algorithm")
         key_transport_props = keyTransportProperties[key_transport_method]
@@ -374,4 +377,6 @@ def decryptMessage(env, keystore):
             content = content[:-ord(content[-1])]
             sax = Parser()
             decrypted_element = sax.parse(string=content)
+            decrypted_elements.extend(decrypted_element.getChildren())
             data_block.parent.replaceChild(data_block, decrypted_element.getChildren())
+    return decrypted_elements

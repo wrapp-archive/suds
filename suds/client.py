@@ -618,15 +618,10 @@ class SoapClient:
     def enforce_policy_outgoing(self):
         self.options.__skins__ = [self.client.options, self.method.soap.input.policy.buildOptions()]
 
-    def enforce_encryption_policy_incoming(self, doc):
+    def enforce_policy_incoming(self, doc, decrypted_elements):
         env = doc.getChild('Envelope')
         policy = self.method.soap.output.policy
-        policy.enforceMessagePreSecurity(env)
-        
-    def enforce_policy_incoming(self, doc):
-        env = doc.getChild('Envelope')
-        policy = self.method.soap.output.policy
-        policy.enforceMessagePostSecurity(env)
+        policy.enforceMessagePostSecurity(env, decrypted_elements)
 
     def send(self, soapenv):
         """
@@ -708,14 +703,11 @@ class SoapClient:
         replyroot = sax.parse(string=reply)
         plugins.message.parsed(reply=replyroot)
 
-        # Encryption policy is enforced separately, because once the
-        # reply is processed, all encrypted data blocks have been decrypted
-        self.enforce_encryption_policy_incoming(replyroot)
         if len(reply) > 0:
             if self.options.wsse.enabled:
-                SecurityProcessor().processIncomingMessage(replyroot.getChild('Envelope'), self.options.wsse)
+                decrypted_elements = SecurityProcessor().processIncomingMessage(replyroot.getChild('Envelope'), self.options.wsse)
             reply, result = binding.get_reply(self.method, replyroot)
-            self.enforce_policy_incoming(reply)
+            self.enforce_policy_incoming(reply, decrypted_elements)
             self.last_received(reply)
         else:
             result = None

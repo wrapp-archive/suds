@@ -53,15 +53,17 @@ def generate_unique_id(do_not_pass_this=[0]):
 class SecurityProcessor:
     def processIncomingMessage(self, soapenv, wsse):
         if soapenv.getChild('Header').getChild('Security') is None:
-            return
+            return []
         if wsse.encryptThenSign:
             xmlsec.verifyMessage(soapenv, wsse.keystore)
-            xmlsec.decryptMessage(soapenv, wsse.keystore)
+            decrypted_elements = xmlsec.decryptMessage(soapenv, wsse.keystore)
             self.removeEncryptedHeaders(soapenv)
         else:
-            xmlsec.decryptMessage(soapenv, wsse.keystore)
+            decrypted_elements = xmlsec.decryptMessage(soapenv, wsse.keystore)
             self.removeEncryptedHeaders(soapenv)
             xmlsec.verifyMessage(soapenv, wsse.keystore)
+
+        return decrypted_elements
 
     def processOutgoingMessage(self, soapenv, wsse):
         soapenv.addPrefix('wsu', 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')

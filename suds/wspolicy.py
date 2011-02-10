@@ -268,10 +268,7 @@ class Policy(Object):
             options.transport.protocol = PROTOCOL_HTTPS_CERT_AUTH
         return options
 
-    def enforceMessagePreSecurity(self, env):
-        pass
-
-    def enforceMessagePostSecurity(self, env):
+    def enforceMessagePostSecurity(self, env, decrypted_elements):
         timestamp = env.childAtPath('Header/Security/Timestamp')
         if self.includeTimestamp and timestamp is None:
             raise Exception, 'WSDL policy required Timestamp, but Timestamp was not present in reply'
@@ -314,4 +311,24 @@ class Policy(Object):
 
         if not policy_signed_blocks <= signed_data_blocks:
             raise Exception, 'Policy specified signed parts that were not signed in the response'
+
+        if decrypted_elements is not None:
+            decrypted_element_set = set([id(x) for x in decrypted_elements])
+        else:
+            decrypted_element_set = set()
+
+        policy_encrypted_blocks = set()
+        for key in self.keys:
+            for part in key.encryptedParts + key.secondPassEncryptedParts:
+                if part[0] == 'body':
+                    for child in env.getChild("Body").getChildren():
+                        policy_encrypted_blocks.add(id(child))
+                elif part[0] == 'header':
+                    for x in env.getChild("Header").getChildren(part[2], ns=(None, part[1])):
+                        policy_encrypted_blocks.add(id(x))
+                elif part[0] == 'signature':
+                    policy_encrypted_blocks.add(id(env.getChild("Header").getChild("Security").getChild("Signature")))
+
+        if not policy_encrypted_blocks <= decrypted_element_set:
+            raise Exception, 'Policy specified encrypted parts that were not encrypted in the response'
 

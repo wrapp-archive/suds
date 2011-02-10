@@ -32,8 +32,9 @@ def override(base_policy, override_policy):
     return new_policy
 
 class Policy(Object):
-    def __init__(self):
+    def __init__(self, initiatorPolicy=True):
         Object.__init__(self)
+        self.initiatorPolicy = initiatorPolicy
         self.wsseEnabled = False
         self.includeTimestamp = False
         self.addressing = False
@@ -135,24 +136,25 @@ class Policy(Object):
                         else:
                             self.keyTransport = KEY_TRANSPORT_RSA_OAEP
 
-        for token in wsdl_policy.tokens:
-            if token.getChild("Policy").getChild("UsernameToken") is not None:
-                token = Object()
-                self.tokens.append(token)
-            elif token.getChild("Policy").getChild("X509Token") is not None:
-                signature = Object()
-                signature.signedParts = self.buildParts(token.getChild("Policy").getChild("SignedParts"))
-                # This would technically be the correct behavior, but WCF specifies that thumbprint references
-                # are supported, but it can't use them for a primary signature.  Support for BinarySecurityTokens
-                # is always required, so just use them
-                #if token.getChild("Policy").getChild("X509Token").getChild("Policy").getChild("RequireThumbprintReference") is not None:
-                #    signature.keyReference = KEY_REFERENCE_FINGERPRINT
-                #elif token.getChild("Policy").getChild("X509Token").getChild("Policy").getChild("RequireIssuerSerialReference") is not None:
-                #    signature.keyReference = KEY_REFERENCE_ISSUER_SERIAL
-                #else:
-                #    signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
-                signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
-                self.signatures.append(signature)
+        if self.initiatorPolicy:
+            for token in wsdl_policy.tokens:
+                if token.getChild("Policy").getChild("UsernameToken") is not None:
+                    token = Object()
+                    self.tokens.append(token)
+                elif token.getChild("Policy").getChild("X509Token") is not None:
+                    signature = Object()
+                    signature.signedParts = self.buildParts(token.getChild("Policy").getChild("SignedParts"))
+                    # This would technically be the correct behavior, but WCF specifies that thumbprint references
+                    # are supported, but it can't use them for a primary signature.  Support for BinarySecurityTokens
+                    # is always required, so just use them
+                    #if token.getChild("Policy").getChild("X509Token").getChild("Policy").getChild("RequireThumbprintReference") is not None:
+                    #    signature.keyReference = KEY_REFERENCE_FINGERPRINT
+                    #elif token.getChild("Policy").getChild("X509Token").getChild("Policy").getChild("RequireIssuerSerialReference") is not None:
+                    #    signature.keyReference = KEY_REFERENCE_ISSUER_SERIAL
+                    #else:
+                    #    signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
+                    signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
+                    self.signatures.append(signature)
 
         if (wsdl_policy.root.getChild("Addressing") is not None or wsdl_policy.root.getChild("UsingAddressing") is not None) and self.addressing <> True:
             if wsdl_policy.root.getChild("Addressing") is not None:

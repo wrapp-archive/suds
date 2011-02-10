@@ -260,8 +260,8 @@ class Definitions(WObject):
                 m.location = p.location
                 m.binding = Facade('binding')
                 op = binding.operation(name)
-                op.soap.input.policy = self.build_policy(binding, op.soap.input)
-                op.soap.output.policy = self.build_policy(binding, op.soap.output)
+                op.soap.input.policy = self.build_policy(binding, op.soap.input, True)
+                op.soap.output.policy = self.build_policy(binding, op.soap.output, False)
                 m.soap = op.soap
                 key = '/'.join((op.soap.style, op.soap.input.body.use))
                 m.binding.input = bindings.get(key)
@@ -270,8 +270,8 @@ class Definitions(WObject):
                 op = ptype.operation(name)
                 p.methods[name] = m
     
-    def build_policy(self, binding, msg):
-        policy = wspolicy.Policy()
+    def build_policy(self, binding, msg, initiator):
+        policy = wspolicy.Policy(initiator)
         for wsdl_policy in binding.policies + msg.policies:
             policy.addFromWsdl(wsdl_policy)
         return policy

@@ -85,11 +85,12 @@ class Policy(Object):
                             self.clientCertRequired = False
                         elif client_cert_req == "true":
                             self.clientCertRequired = True
-            if wsdl_policy.binding.getChild("InitiatorToken") is not None:
-                token = wsdl_policy.binding.getChild("InitiatorToken")
+            if wsdl_policy.binding.getChild("InitiatorToken") is not None or wsdl_policy.binding.getChild("ProtectionToken") is not None:
+                token = wsdl_policy.binding.getChild("InitiatorToken") or wsdl_policy.binding.getChild("ProtectionToken")
                 if token.getChild("Policy").getChild("X509Token") is not None:
                     signature = Object()
                     signature.signedParts = self.buildParts(token.getChild("Policy").getChild("SignedParts"))
+                    signature.signedParts.append(('timestamp',))
                     # This would technically be the correct behavior, but WCF specifies that thumbprint references
                     # are supported, but it can't use them for a primary signature.  Support for BinarySecurityTokens
                     # is always required, so just use them
@@ -141,9 +142,11 @@ class Policy(Object):
                 if token.getChild("Policy").getChild("UsernameToken") is not None:
                     token = Object()
                     self.tokens.append(token)
-                elif token.getChild("Policy").getChild("X509Token") is not None:
+                elif 'EndorsingSupportingToken' in token.name and token.getChild("Policy").getChild("X509Token") is not None:
                     signature = Object()
                     signature.signedParts = self.buildParts(token.getChild("Policy").getChild("SignedParts"))
+                    if wsdl_policy.binding_type == 'TransportBinding':
+                        signature.signedParts.append(('timestamp',))
                     # This would technically be the correct behavior, but WCF specifies that thumbprint references
                     # are supported, but it can't use them for a primary signature.  Support for BinarySecurityTokens
                     # is always required, so just use them
@@ -222,12 +225,12 @@ class Policy(Object):
                         signed_parts.append(lambda env: env.getChild("Body"))
                     elif part[0] == 'header':
                         signed_parts.append(create_signed_header_func(part[1], part[2]))
+                    elif part[0] == 'timestamp':
+                        signed_parts.append(lambda env: env.childAtPath("Header/Security/Timestamp"))
                 
                 options.wsse.signatures[index].signedparts = signed_parts
 
                 index = index + 1
-            if self.includeTimestamp and len(self.signatures) > 0:
-                options.wsse.signatures[0].signedparts.append(lambda env: env.getChild("Header").getChild("Security").getChild("Timestamp"))
 
             index = 0
             for key in self.keys:

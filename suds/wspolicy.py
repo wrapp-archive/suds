@@ -170,11 +170,10 @@ class Policy(Object):
             elif optional == "true":
                 self.addressing = None # use what the user specifies
 
-        for sig in self.signatures:
-            sig.signedParts.extend(baseSignedParts)
-        for key in self.keys:
-            key.encryptedParts.extend(baseEncryptedParts)
-            key.secondPassEncryptedParts.extend(secondPassEncryptedParts)
+        if wsdl_policy.binding_type <> 'TransportBinding':
+            self.signatures[0].signedParts.extend(baseSignedParts)
+            self.keys[0].encryptedParts.extend(baseEncryptedParts)
+            self.keys[0].secondPassEncryptedParts.extend(secondPassEncryptedParts)
 
         if wsdl_policy.root.getChild("Wss10") is not None:
             self.wsse11 = False

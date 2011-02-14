@@ -51,17 +51,20 @@ def generate_unique_id(do_not_pass_this=[0]):
     return do_not_pass_this[0]
 
 class SecurityProcessor:
+    def __init__(self):
+        self.symmetricKeys = dict()
+
     def processIncomingMessage(self, soapenv, wsse):
         if soapenv.getChild('Header').getChild('Security') is None:
             return []
         if wsse.encryptThenSign:
-            xmlsec.verifyMessage(soapenv, wsse.keystore)
-            decrypted_elements = xmlsec.decryptMessage(soapenv, wsse.keystore)
+            xmlsec.verifyMessage(soapenv, wsse.keystore, self.symmetricKeys)
+            decrypted_elements = xmlsec.decryptMessage(soapenv, wsse.keystore, self.symmetricKeys)
             self.removeEncryptedHeaders(soapenv)
         else:
-            decrypted_elements = xmlsec.decryptMessage(soapenv, wsse.keystore)
+            decrypted_elements = xmlsec.decryptMessage(soapenv, wsse.keystore, self.symmetricKeys)
             self.removeEncryptedHeaders(soapenv)
-            xmlsec.verifyMessage(soapenv, wsse.keystore)
+            xmlsec.verifyMessage(soapenv, wsse.keystore, self.symmetricKeys)
 
         return decrypted_elements
 
@@ -70,6 +73,8 @@ class SecurityProcessor:
         soapenv.getChild('Header').insert(self.xml(wsse), 0)
         signatures = [Signature(options) for options in wsse.signatures]
         keys = [Key(options) for options in wsse.keys]
+        for key in keys:
+            self.symmetricKeys[key.cipherValueSha1] = key.symmetricKey.sym_key
         signatures[0].symmetricKey = keys[0].symmetricKey
         signatures[0].encKeyUri = "#" + keys[0].keyId
 
@@ -333,7 +338,7 @@ class Signature(Object):
 class Key(Object):
     def buildEncryptedKey(self):
         self.keyId = "EncKeyId-" + str(generate_unique_id())
-        self.encryptedKey = buildEncryptedKey(self.keyId, self.cert, self.symmetricKey.sym_key, self.keyReference, self.blockEncryption, self.keyTransport)
+        (self.encryptedKey, self.cipherValueSha1) = buildEncryptedKey(self.keyId, self.cert, self.symmetricKey.sym_key, self.keyReference, self.blockEncryption, self.keyTransport)
 
     def encryptMessage(self, env, use_encrypted_header=False, second_pass=False):
         encrypted_parts = second_pass and self.second_pass_encrypted_parts or self.encrypted_parts

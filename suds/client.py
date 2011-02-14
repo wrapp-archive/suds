@@ -600,7 +600,8 @@ class SoapClient:
         soapdoc = binding.get_message(self.method, args, kwargs)
         if self.options.wsse is not None:
             env = soapdoc.getChild('Envelope')
-            SecurityProcessor().processOutgoingMessage(env, self.options.wsse)
+            self.securityProcessor = SecurityProcessor()
+            self.securityProcessor.processOutgoingMessage(env, self.options.wsse)
         timer.stop()
         metrics.log.debug(
                 "message for '%s' created: %s",
@@ -705,7 +706,7 @@ class SoapClient:
 
         if len(reply) > 0:
             if self.options.wsse.enabled:
-                decrypted_elements = SecurityProcessor().processIncomingMessage(replyroot.getChild('Envelope'), self.options.wsse)
+                decrypted_elements = self.securityProcessor.processIncomingMessage(replyroot.getChild('Envelope'), self.options.wsse)
             reply, result = binding.get_reply(self.method, replyroot)
             self.enforce_policy_incoming(reply, decrypted_elements)
             self.last_received(reply)

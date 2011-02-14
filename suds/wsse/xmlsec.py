@@ -164,11 +164,15 @@ def buildEncryptedKey(key_id, cert, sym_key, reference_type=KEY_REFERENCE_ISSUER
     cipher_value.setText(b64encode(enc_sym_key))
     cipher_data.append(cipher_value)
     
+    sha1 = EVP.MessageDigest('sha1')
+    sha1.update(enc_sym_key)
+    cipher_value_sha1 = sha1.final()
+
     enc_key.append(enc_method)
     enc_key.append(key_info)
     enc_key.append(cipher_data)
 
-    return enc_key
+    return (enc_key, cipher_value_sha1)
 
 def buildSymmetricKey(block_encryption_algorithm=BLOCK_ENCRYPTION_AES128_CBC):
     sym_key = Object()
@@ -244,7 +248,7 @@ def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUE
     
     return sig
 
-def verifyMessage(env, keystore):
+def verifyMessage(env, keystore, symmetric_keys):
     signed_data_blocks = dict()
     
     def collectSignedDataBlock(elt):
@@ -275,6 +279,9 @@ def verifyMessage(env, keystore):
             ski = b64decode(sec_token_reference.getChild("KeyIdentifier").getText())
             reference = X509SubjectKeyIdentifierKeypairReference(ski.encode('hex'))
             pub_key = keystore.lookup(reference).getEvpPublicKey()
+        elif sec_token_reference.getChild("KeyIdentifier") is not None and sec_token_reference.getChild("KeyIdentifier").get("ValueType") == 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKeySHA1':
+            sha1_id = sec_token_reference.getChild("KeyIdentifier").getText()
+            pub_key = symmetric_keys[b64decode(sha1_id)]
         elif sec_token_reference.getChild("Reference") is not None and sec_token_reference.getChild("Reference").get("ValueType") == 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3':
             ref_id = sec_token_reference.getChild("Reference").get("URI")
             if not ref_id[0] == "#":
@@ -283,11 +290,21 @@ def verifyMessage(env, keystore):
             pub_key = X509.load_cert_der_string(cert_as_der).get_pubkey()
         else:
             raise Exception, 'Response contained unrecognized SecurityTokenReference'
-        pub_key.reset_context(md='sha1')
-        pub_key.verify_init()
-        pub_key.verify_update(signed_content.encode("utf-8"))
-        if pub_key.verify_final(signature) == 0:
-            raise Exception, "signature failed verification"
+        algorithm = sig_elt.getChild("SignedInfo", ns=dsns).getChild("SignatureMethod").get("Algorithm")
+        if algorithm == SIGNATURE_RSA_SHA1:
+            pub_key.reset_context(md='sha1')
+            pub_key.verify_init()
+            pub_key.verify_update(signed_content.encode("utf-8"))
+            if pub_key.verify_final(signature) == 0:
+                raise Exception, "signature failed verification"
+        elif algorithm == SIGNATURE_HMAC_SHA1:
+            hmac_key = EVP.HMAC(pub_key)
+            hmac_key.update(signed_content.encode("utf-8"))
+            result = hmac_key.final()
+            if result <> signature:
+                raise Exception, "signature failed verification"
+        else:
+            raise Exception, 'Signature could not be verified, constructed with unrecognized algorithm: ' + algorithm
         for signed_part in sig_elt.getChild("SignedInfo", ns=dsns).getChildren("Reference", ns=dsns):
             enclosed_digest = b64decode(signed_part.getChild("DigestValue", ns=dsns).getText())
             signed_part_id = signed_part.get("URI")
@@ -364,14 +381,13 @@ def encryptMessage(cert, symmetric_key, elements_to_encrypt, enc_key_uri, refere
     
     return reference_list
 
-def decryptMessage(env, keystore):
-    enc_data_blocks = dict()
-    
+def decryptMessage(env, keystore, symmetric_keys):
+    enc_data_blocks = []
+    data_block_id_to_key = dict()
+
     def collectEncryptedDataBlock(elt):
-        if not elt.match("EncryptedData", ns=wsencns):
-            return
-        
-        enc_data_blocks[elt.get("Id")] = elt
+        if elt.match("EncryptedData", ns=wsencns):
+            enc_data_blocks.append(elt)
 
     env.walk(collectEncryptedDataBlock)
 
@@ -395,20 +411,37 @@ def decryptMessage(env, keystore):
             raise Exception, 'Response contained unrecognized SecurityTokenReference'
         priv_key = keystore.lookup(reference).getRsaPrivateKey()
         sym_key = priv_key.private_decrypt(enc_key, key_transport_props['padding'])
-        for data_block_id in [c.get("URI") for c in key_elt.getChild("ReferenceList").getChildren("DataReference")]:
-            if not data_block_id[0] == "#":
-                raise Exception, "Cannot handle non-local data references"
-            data_block = enc_data_blocks[data_block_id[1:]]
-            block_encryption_props = blockEncryptionProperties[data_block.getChild("EncryptionMethod").get("Algorithm")]
-            enc_content = b64decode(data_block.getChild("CipherData").getChild("CipherValue").getText())
-            iv = enc_content[:block_encryption_props['iv_size']]
-            enc_content = enc_content[block_encryption_props['iv_size']:]
-            cipher = EVP.Cipher(alg=block_encryption_props['openssl_cipher'], key=sym_key, iv=iv, op=0, padding=0)
-            content = cipher.update(enc_content)
-            content = content + cipher.final()
-            content = content[:-ord(content[-1])]
-            sax = Parser()
-            decrypted_element = sax.parse(string=content)
-            decrypted_elements.extend(decrypted_element.getChildren())
-            data_block.parent.replaceChild(data_block, decrypted_element.getChildren())
+        symmetric_keys[key_elt.get("Id")] = sym_key
+        
+        if key_elt.getChild("ReferenceList") is not None:
+            for data_reference in key_elt.getChild("ReferenceList").getChildren("DataReference"):
+                uri = data_reference.get("URI")
+                data_block_id_to_key[uri[1:]] = sym_key
+
+    for data_block in enc_data_blocks:
+        block_encryption_props = blockEncryptionProperties[data_block.getChild("EncryptionMethod").get("Algorithm")]
+        enc_content = b64decode(data_block.getChild("CipherData").getChild("CipherValue").getText())
+        iv = enc_content[:block_encryption_props['iv_size']]
+        enc_content = enc_content[block_encryption_props['iv_size']:]
+        
+        if data_block.get("Id") in data_block_id_to_key:
+            sym_key = data_block_id_to_key[data_block.get("Id")]
+        else:
+            sec_token_reference = data_block.getChild("KeyInfo").getChild("SecurityTokenReference")
+            if sec_token_reference.getChild("KeyIdentifier") is not None and sec_token_reference.getChild("KeyIdentifier").get("ValueType") == 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKeySHA1':
+                sha1_id = sec_token_reference.getChild("KeyIdentifier").getText()
+                sym_key = symmetric_keys[b64decode(sha1_id)]
+            elif sec_token_reference.getChild("Reference", ns=wssens) is not None:
+                sym_key = symmetric_keys[sec_token_reference.getChild("Reference", ns=wssens).get("URI")[1:]]
+            else:
+                raise Exception, 'Response contained an encrypted block for which a key could not be found to decrypt'
+
+        cipher = EVP.Cipher(alg=block_encryption_props['openssl_cipher'], key=sym_key, iv=iv, op=0, padding=0)
+        content = cipher.update(enc_content)
+        content = content + cipher.final()
+        content = content[:-ord(content[-1])]
+        sax = Parser()
+        decrypted_element = sax.parse(string=content)
+        decrypted_elements.extend(decrypted_element.getChildren())
+        data_block.parent.replaceChild(data_block, decrypted_element.getChildren())
     return decrypted_elements

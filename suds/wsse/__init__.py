@@ -71,6 +71,7 @@ class SecurityProcessor:
         signatures = [Signature(options) for options in wsse.signatures]
         keys = [Key(options) for options in wsse.keys]
         signatures[0].symmetricKey = keys[0].symmetricKey
+        signatures[0].encKeyUri = "#" + keys[0].keyId
 
         if wsse.encryptThenSign:
             self.encryptMessage(soapenv, wsse, keys)
@@ -107,10 +108,20 @@ class SecurityProcessor:
                 primary_sig = sig.element
 
     def encryptMessage(self, env, wsse, keys):
-        env.getChild('Header').getChild('Security').insert([k.encryptMessage(env, wsse.wsse11) for k in keys], self.insertPosition(wsse))
+        security_header = env.childAtPath('Header/Security')
+        insert_position = self.insertPosition(wsse)
+        for key in keys:
+            new_headers = key.encryptMessage(env, wsse.wsse11)
+            security_header.insert(new_headers, insert_position)
+            insert_position = insert_position + len(new_headers)
 
     def encryptMessageSecondPass(self, env, wsse, keys):
-        env.getChild('Header').getChild('Security').insert([k.encryptMessage(env, wsse.wsse11, True) for k in keys], self.insertPosition(wsse))
+        security_header = env.childAtPath('Header/Security')
+        insert_position = self.insertPosition(wsse)
+        for key in keys:
+            new_headers = key.encryptMessage(env, wsse.wsse11, True)
+            security_header.insert(new_headers, insert_position)
+            insert_position = insert_position + len(new_headers)
 
     def insertPosition(self, wsse):
         return len(wsse.tokens) + (wsse.includeTimestamp and wsse.headerLayout != HEADER_LAYOUT_LAX_TIMESTAMP_LAST) and 1 or 0
@@ -271,10 +282,11 @@ class Signature(Object):
             self.token.setText(self.x509_issuer_serial.getCertificateText())
             self.token.set("ValueType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3")
             self.token.set("EncodingType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary")
-            self.bst_id = "BSTID-" + str(generate_unique_id())
-            self.token.set("wsu:Id", self.bst_id)
+            bst_id = "BSTID-" + str(generate_unique_id())
+            self.token.set("wsu:Id", bst_id)
+            self.bst_id = "#" + bst_id
         elif self.keyReference == xmlsec.KEY_REFERENCE_ENCRYPTED_KEY:
-            self.bst_id = "EncKeyId-7"
+            self.bst_id = self.encKeyUri
         return self.token
 
     def signMessage(self, env, signOnlyEntireHeadersAndBody):
@@ -319,6 +331,10 @@ class Signature(Object):
         self.symmetricKey = sym_key
 
 class Key(Object):
+    def buildEncryptedKey(self):
+        self.keyId = "EncKeyId-" + str(generate_unique_id())
+        self.encryptedKey = buildEncryptedKey(self.keyId, self.cert, self.symmetricKey.sym_key, self.keyReference, self.blockEncryption, self.keyTransport)
+
     def encryptMessage(self, env, use_encrypted_header=False, second_pass=False):
         encrypted_parts = second_pass and self.second_pass_encrypted_parts or self.encrypted_parts
         elements_to_encrypt = []
@@ -341,12 +357,16 @@ class Key(Object):
                     else:
                         elements_to_encrypt.append((element, addl_elements[1]))
 
-        key = xmlsec.encryptMessage(self.cert, self.symmetricKey, elements_to_encrypt, self.keyReference, self.keyTransport)
+        ref_list = xmlsec.encryptMessage(self.cert, self.symmetricKey, elements_to_encrypt, '#' + self.keyId, self.keyReference, self.keyTransport)
 
         for enc_hdr in encrypted_headers:
             enc_hdr.set('wsu:Id', enc_hdr[0].get('Id'))
             enc_hdr[0].unset('Id')
-        return key
+        if False:
+            self.encryptedKey.append(ref_list)
+            return self.encryptedKey
+        else:
+            return (self.encryptedKey, ref_list)
         
     def __init__(self, options):
         Object.__init__(self)
@@ -357,3 +377,4 @@ class Key(Object):
         self.keyTransport = options.keytransport 
         self.keyReference = options.keyreference
         self.symmetricKey = buildSymmetricKey(self.blockEncryption)
+        self.buildEncryptedKey()

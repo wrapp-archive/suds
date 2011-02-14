@@ -138,16 +138,37 @@ def build_key_info(cert, reference_type, ref_id=None):
     elif reference_type == KEY_REFERENCE_BINARY_SECURITY_TOKEN:
         reference = Element("Reference", ns=wssens)
         reference.set("ValueType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3")
-        reference.set("URI", "#" + ref_id)
+        reference.set("URI", ref_id)
         sec_token_ref.append(reference)
     elif reference_type == KEY_REFERENCE_ENCRYPTED_KEY:
         reference = Element("Reference", ns=wssens)
-        reference.set("URI", "#" + ref_id)
+        reference.set("URI", ref_id)
         reference.set("ValueType", "http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKey")
         sec_token_ref.append(reference)
     key_info.append(sec_token_ref)
     
     return key_info
+
+def buildEncryptedKey(key_id, cert, sym_key, reference_type=KEY_REFERENCE_ISSUER_SERIAL, block_encryption=BLOCK_ENCRYPTION_AES128_CBC, key_transport=KEY_TRANSPORT_RSA_OAEP):
+    enc_key = Element("EncryptedKey", ns=wsencns)
+    enc_key.set("Id", key_id)
+    enc_method = Element("EncryptionMethod", ns=wsencns)
+    enc_method.set("Algorithm", keyTransportProperties[key_transport]['uri'])
+    key_info = build_key_info(cert, reference_type)
+    
+    cipher_data = Element("CipherData", ns=wsencns)
+    cipher_value = Element("CipherValue", ns=wsencns)
+    block_encryption_props = blockEncryptionProperties[block_encryption]
+    pub_key = cert.getRsaPublicKey()
+    enc_sym_key = pub_key.public_encrypt(sym_key, keyTransportProperties[key_transport]['padding'])
+    cipher_value.setText(b64encode(enc_sym_key))
+    cipher_data.append(cipher_value)
+    
+    enc_key.append(enc_method)
+    enc_key.append(key_info)
+    enc_key.append(cipher_data)
+
+    return enc_key
 
 def buildSymmetricKey(block_encryption_algorithm=BLOCK_ENCRYPTION_AES128_CBC):
     sym_key = Object()
@@ -287,33 +308,12 @@ def verifyMessage(env, keystore):
             if hash.digest() <> enclosed_digest:
                 raise Exception, "digest for section with id " + signed_part_id[1:] + " failed verification"
 
-def encryptMessage(cert, symmetric_key, elements_to_encrypt, reference_type=KEY_REFERENCE_ISSUER_SERIAL, key_transport=KEY_TRANSPORT_RSA_OAEP, embed_reference_list=True):
+def encryptMessage(cert, symmetric_key, elements_to_encrypt, enc_key_uri, reference_type=KEY_REFERENCE_ISSUER_SERIAL, key_transport=KEY_TRANSPORT_RSA_OAEP):
     sym_key = symmetric_key.sym_key
     iv = symmetric_key.iv
     block_encryption = symmetric_key.block_encryption_algorithm
 
-    enc_key = Element("EncryptedKey", ns=wsencns)
-    key_id = "EncKeyId-" + str(generate_unique_id())
-    enc_key.set("Id", key_id)
-    enc_method = Element("EncryptionMethod", ns=wsencns)
-    enc_method.set("Algorithm", keyTransportProperties[key_transport]['uri'])
-    key_info = build_key_info(cert, reference_type)
-    
-    cipher_data = Element("CipherData", ns=wsencns)
-    cipher_value = Element("CipherValue", ns=wsencns)
-    block_encryption_props = blockEncryptionProperties[block_encryption]
-    pub_key = cert.getRsaPublicKey()
-    enc_sym_key = pub_key.public_encrypt(sym_key, keyTransportProperties[key_transport]['padding'])
-    cipher_value.setText(b64encode(enc_sym_key))
-    cipher_data.append(cipher_value)
-    
     reference_list = Element("ReferenceList", ns=wsencns)
-    
-    enc_key.append(enc_method)
-    enc_key.append(key_info)
-    enc_key.append(cipher_data)
-    if embed_reference_list:
-        enc_key.append(reference_list)
 
     for (element_to_encrypt, type) in elements_to_encrypt:
         reference = Element("DataReference", ns=wsencns)
@@ -335,7 +335,7 @@ def encryptMessage(cert, symmetric_key, elements_to_encrypt, reference_type=KEY_
         key_info = Element("KeyInfo", ns=dsns)
         sec_token_ref = Element("SecurityTokenReference", ns=wssens)
         wsse_reference = Element("Reference", ns=wssens)
-        wsse_reference.set("URI", "#" + key_id)
+        wsse_reference.set("URI", enc_key_uri)
         sec_token_ref.append(wsse_reference)
         key_info.append(sec_token_ref)
         
@@ -362,10 +362,7 @@ def encryptMessage(cert, symmetric_key, elements_to_encrypt, reference_type=KEY_
                 element_to_encrypt.remove(child)
             element_to_encrypt.append(enc_data)
     
-    if embed_reference_list:
-        return enc_key
-    else:
-        return (enc_key, reference_list)
+    return reference_list
 
 def decryptMessage(env, keystore):
     enc_data_blocks = dict()

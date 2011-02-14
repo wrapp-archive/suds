@@ -25,6 +25,7 @@ from base64 import b64encode,b64decode
 from M2Crypto import *
 import random
 import hashlib
+from suds.sudsobject import Object
 
 dsns = \
     ('ds',
@@ -38,6 +39,9 @@ wsuns = \
 wsencns = \
     ('wsenc',
      'http://www.w3.org/2001/04/xmlenc#')
+
+SIGNATURE_RSA_SHA1 = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1'
+SIGNATURE_HMAC_SHA1 = 'http://www.w3.org/2000/09/xmldsig#hmac-sha1'
 
 DIGEST_SHA1 = 'http://www.w3.org/2000/09/xmldsig#sha1'
 DIGEST_SHA256 = 'http://www.w3.org/2001/04/xmlenc#sha256'
@@ -103,6 +107,7 @@ keyTransportProperties[KEY_TRANSPORT_RSA_OAEP] = {
 KEY_REFERENCE_ISSUER_SERIAL = 'IssuerSerial'
 KEY_REFERENCE_FINGERPRINT = 'Fingerprint'
 KEY_REFERENCE_BINARY_SECURITY_TOKEN = 'BinarySecurityToken'
+KEY_REFERENCE_ENCRYPTED_KEY = 'EncryptedKey'
 
 random = random.SystemRandom()
 
@@ -110,7 +115,7 @@ def generate_unique_id(do_not_pass_this=[0]):
     do_not_pass_this[0] = do_not_pass_this[0] + 1
     return do_not_pass_this[0]
 
-def build_key_info(cert, reference_type, bst_id=None):
+def build_key_info(cert, reference_type, ref_id=None):
     key_info = Element("KeyInfo", ns=dsns)
     sec_token_ref = Element("SecurityTokenReference", ns=wssens)
     if reference_type == KEY_REFERENCE_ISSUER_SERIAL:
@@ -133,26 +138,39 @@ def build_key_info(cert, reference_type, bst_id=None):
     elif reference_type == KEY_REFERENCE_BINARY_SECURITY_TOKEN:
         reference = Element("Reference", ns=wssens)
         reference.set("ValueType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3")
-        reference.set("URI", "#" + bst_id)
+        reference.set("URI", "#" + ref_id)
+        sec_token_ref.append(reference)
+    elif reference_type == KEY_REFERENCE_ENCRYPTED_KEY:
+        reference = Element("Reference", ns=wssens)
+        reference.set("URI", "#" + ref_id)
+        reference.set("ValueType", "http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKey")
         sec_token_ref.append(reference)
     key_info.append(sec_token_ref)
     
     return key_info
 
-def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUER_SERIAL, digest_algorithm=DIGEST_SHA1, bst_id=None):
+def buildSymmetricKey(block_encryption_algorithm=BLOCK_ENCRYPTION_AES128_CBC):
+    sym_key = Object()
+    block_encryption_props = blockEncryptionProperties[block_encryption_algorithm]
+    sym_key.sym_key = bytearray([random.getrandbits(8) for i in range(0, block_encryption_props['key_size'])])
+    sym_key.iv = bytearray([random.getrandbits(8) for i in range(0, block_encryption_props['iv_size'])])
+    sym_key.block_encryption_algorithm = block_encryption_algorithm
+    return sym_key
+
+def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUER_SERIAL, digest_algorithm=DIGEST_SHA1, signature_algorithm=SIGNATURE_RSA_SHA1, ref_id=None):
     sig = Element("Signature", ns=dsns)
 
     signed_info = Element("SignedInfo", ns=dsns)
     canon_method = Element("CanonicalizationMethod", ns=dsns)
     canon_method.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
     sig_method = Element("SignatureMethod", ns=dsns)
-    sig_method.set("Algorithm", "http://www.w3.org/2000/09/xmldsig#rsa-sha1")
+    sig_method.set("Algorithm", signature_algorithm)
     signed_info.append(canon_method)
     signed_info.append(sig_method)
 
     sig_value = Element("SignatureValue", ns=dsns)
 
-    key_info = build_key_info(ref, reference_type, bst_id)
+    key_info = build_key_info(ref, reference_type, ref_id)
     
     sig.append(signed_info)
     sig.append(sig_value)
@@ -172,11 +190,15 @@ def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUE
         reference.append(digest_value)
         signed_info.append(reference)        
 
-        if element_to_digest.get('wsu:Id'):
-            element_id = element_to_digest.get('wsu:Id')
+        if element_to_digest.namespace()[1] == dsns[1]:
+            id_attribute = 'Id'
+        else:
+            id_attribute = 'wsu:Id'
+        if element_to_digest.get(id_attribute):
+            element_id = element_to_digest.get(id_attribute)
         else:
             element_id = "id-" + str(generate_unique_id())
-            element_to_digest.set('wsu:Id', element_id)
+            element_to_digest.set(id_attribute, element_id)
         reference.set("URI", "#" + element_id)
         element_content = element_to_digest.canonical()
         digest_props = digestProperties[digest_algorithm]
@@ -186,10 +208,17 @@ def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUE
 
     element_to_sign = signed_info
     element_content = element_to_sign.canonical()
-    priv_key = key.getEvpPrivateKey()
-    priv_key.sign_init()
-    priv_key.sign_update(element_content.encode("utf-8"))
-    signed_digest = priv_key.sign_final()
+
+    if signature_algorithm == SIGNATURE_RSA_SHA1:
+        priv_key = key.getEvpPrivateKey()
+        priv_key.sign_init()
+        priv_key.sign_update(element_content.encode("utf-8"))
+        signed_digest = priv_key.sign_final()
+    elif signature_algorithm == SIGNATURE_HMAC_SHA1:
+        enc = EVP.HMAC(key)
+        enc.update(element_content.encode("utf-8"))
+        signed_digest = enc.final()
+
     sig_value.setText(b64encode(signed_digest))
     
     return sig
@@ -226,10 +255,10 @@ def verifyMessage(env, keystore):
             reference = X509SubjectKeyIdentifierKeypairReference(ski.encode('hex'))
             pub_key = keystore.lookup(reference).getEvpPublicKey()
         elif sec_token_reference.getChild("Reference") is not None and sec_token_reference.getChild("Reference").get("ValueType") == 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3':
-            bst_id = sec_token_reference.getChild("Reference").get("URI")
-            if not bst_id[0] == "#":
+            ref_id = sec_token_reference.getChild("Reference").get("URI")
+            if not ref_id[0] == "#":
                 raise Exception, "Cannot handle non-local BinarySecurityToken references"
-            cert_as_der = b64decode(signed_data_blocks[bst_id[1:]].getText())
+            cert_as_der = b64decode(signed_data_blocks[ref_id[1:]].getText())
             pub_key = X509.load_cert_der_string(cert_as_der).get_pubkey()
         else:
             raise Exception, 'Response contained unrecognized SecurityTokenReference'
@@ -258,7 +287,11 @@ def verifyMessage(env, keystore):
             if hash.digest() <> enclosed_digest:
                 raise Exception, "digest for section with id " + signed_part_id[1:] + " failed verification"
 
-def encryptMessage(cert, elements_to_encrypt, reference_type=KEY_REFERENCE_ISSUER_SERIAL, key_transport=KEY_TRANSPORT_RSA_OAEP, block_encryption=BLOCK_ENCRYPTION_AES128_CBC):
+def encryptMessage(cert, symmetric_key, elements_to_encrypt, reference_type=KEY_REFERENCE_ISSUER_SERIAL, key_transport=KEY_TRANSPORT_RSA_OAEP, embed_reference_list=True):
+    sym_key = symmetric_key.sym_key
+    iv = symmetric_key.iv
+    block_encryption = symmetric_key.block_encryption_algorithm
+
     enc_key = Element("EncryptedKey", ns=wsencns)
     key_id = "EncKeyId-" + str(generate_unique_id())
     enc_key.set("Id", key_id)
@@ -269,8 +302,6 @@ def encryptMessage(cert, elements_to_encrypt, reference_type=KEY_REFERENCE_ISSUE
     cipher_data = Element("CipherData", ns=wsencns)
     cipher_value = Element("CipherValue", ns=wsencns)
     block_encryption_props = blockEncryptionProperties[block_encryption]
-    sym_key = bytearray([random.getrandbits(8) for i in range(0, block_encryption_props['key_size'])])
-    iv = bytearray([random.getrandbits(8) for i in range(0, block_encryption_props['iv_size'])])
     pub_key = cert.getRsaPublicKey()
     enc_sym_key = pub_key.public_encrypt(sym_key, keyTransportProperties[key_transport]['padding'])
     cipher_value.setText(b64encode(enc_sym_key))
@@ -281,7 +312,8 @@ def encryptMessage(cert, elements_to_encrypt, reference_type=KEY_REFERENCE_ISSUE
     enc_key.append(enc_method)
     enc_key.append(key_info)
     enc_key.append(cipher_data)
-    enc_key.append(reference_list)
+    if embed_reference_list:
+        enc_key.append(reference_list)
 
     for (element_to_encrypt, type) in elements_to_encrypt:
         reference = Element("DataReference", ns=wsencns)
@@ -330,7 +362,10 @@ def encryptMessage(cert, elements_to_encrypt, reference_type=KEY_REFERENCE_ISSUE
                 element_to_encrypt.remove(child)
             element_to_encrypt.append(enc_data)
     
-    return enc_key
+    if embed_reference_list:
+        return enc_key
+    else:
+        return (enc_key, reference_list)
 
 def decryptMessage(env, keystore):
     enc_data_blocks = dict()

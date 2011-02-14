@@ -39,6 +39,7 @@ class Policy(Object):
         self.includeTimestamp = False
         self.addressing = False
         self.headerLayout = None
+        self.protectTokens = False
         self.onlySignEntireHeadersAndBody = False
         self.clientCertRequired = False
         self.blockEncryption = None
@@ -72,6 +73,8 @@ class Policy(Object):
                     baseEncryptedParts.append(('signature',))
             if wsdl_policy.binding.getChild("OnlySignEntireHeadersAndBody") is not None:
                 self.onlySignEntireHeadersAndBody = True
+            if wsdl_policy.binding.getChild("ProtectTokens") is not None:
+                self.protectTokens = True
             if wsdl_policy.binding.getChild("Layout") is not None:
                 layout = wsdl_policy.binding.getChild("Layout").getChild("Policy")[0]
                 self.headerLayout = layout.name
@@ -147,6 +150,10 @@ class Policy(Object):
                     signature.signedParts = self.buildParts(token.getChild("Policy").getChild("SignedParts"))
                     if wsdl_policy.binding_type == 'TransportBinding':
                         signature.signedParts.append(('timestamp',))
+                    else:
+                        signature.signedParts.append(('primary_signature',))
+                        if self.protectTokens:
+                            signature.signedParts.append(('token',))
                     # This would technically be the correct behavior, but WCF specifies that thumbprint references
                     # are supported, but it can't use them for a primary signature.  Support for BinarySecurityTokens
                     # is always required, so just use them
@@ -206,7 +213,7 @@ class Policy(Object):
                 options.wsse.headerLayout = self.headerLayout
 
             def create_signed_header_func(ns, name):
-                return lambda env: env.getChild("Header").getChildren(name, ns=(None, ns))
+                return lambda env, sig: env.getChild("Header").getChildren(name, ns=(None, ns))
                     
             def create_encrypted_header_func(ns, name):
                 return lambda env: (env.getChild("Header").getChildren(name, ns=(None, ns)), 'Element')
@@ -221,11 +228,15 @@ class Policy(Object):
                 signed_parts = []
                 for part in sig.signedParts:
                     if part[0] == 'body':
-                        signed_parts.append(lambda env: env.getChild("Body"))
+                        signed_parts.append(lambda env, sig: env.getChild("Body"))
                     elif part[0] == 'header':
                         signed_parts.append(create_signed_header_func(part[1], part[2]))
                     elif part[0] == 'timestamp':
-                        signed_parts.append(lambda env: env.childAtPath("Header/Security/Timestamp"))
+                        signed_parts.append(lambda env, sig: env.childAtPath("Header/Security/Timestamp"))
+                    elif part[0] == 'primary_signature':
+                        signed_parts.append(lambda env, sig: sig.primary_sig)
+                    elif part[0] == 'token':
+                        signed_parts.append(lambda env, sig: sig.token)
                 
                 options.wsse.signatures[index].signedparts = signed_parts
 

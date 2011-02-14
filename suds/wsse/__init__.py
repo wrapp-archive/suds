@@ -68,13 +68,17 @@ class SecurityProcessor:
     def processOutgoingMessage(self, soapenv, wsse):
         soapenv.addPrefix('wsu', 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
         soapenv.getChild('Header').insert(self.xml(wsse), 0)
+        signatures = [Signature(options) for options in wsse.signatures]
+        keys = [Key(options) for options in wsse.keys]
+        signatures[0].symmetricKey = keys[0].symmetricKey
+
         if wsse.encryptThenSign:
-            self.encryptMessage(soapenv, wsse)
-            self.signMessage(soapenv, wsse)
-            self.encryptMessageSecondPass(soapenv, wsse)
+            self.encryptMessage(soapenv, wsse, keys)
+            self.signMessage(soapenv, wsse, signatures)
+            self.encryptMessageSecondPass(soapenv, wsse, keys)
         else:
-            self.signMessage(soapenv, wsse)
-            self.encryptMessage(soapenv, wsse)
+            self.signMessage(soapenv, wsse, signatures)
+            self.encryptMessage(soapenv, wsse, keys)
     
     def removeEncryptedHeaders(self, soapenv):
         def removeEncryptedHeaders(elt):
@@ -87,14 +91,26 @@ class SecurityProcessor:
 
         soapenv.walk(removeEncryptedHeaders)
         
-    def signMessage(self, env, wsse):
-        env.getChild('Header').getChild('Security').insert(reduce(lambda x,y: x + Signature(y).signMessage(env, wsse.signOnlyEntireHeadersAndBody), wsse.signatures, []), self.insertPosition(wsse))
+    def signMessage(self, env, wsse, signatures):
+        primary_sig = None
+        security_header = env.childAtPath('Header/Security')
+        insert_position = self.insertPosition(wsse)
+        for sig in signatures:
+            sig.primary_sig = primary_sig
+            token = sig.buildTokens()
+            if token is not None:
+                security_header.insert(token, insert_position)
+                insert_position = insert_position + 1
+            security_header.insert(sig.signMessage(env, wsse.signOnlyEntireHeadersAndBody), insert_position)
+            insert_position = insert_position + 1
+            if primary_sig is None:
+                primary_sig = sig.element
 
-    def encryptMessage(self, env, wsse):
-        env.getChild('Header').getChild('Security').insert([Key(k).encryptMessage(env, wsse.wsse11) for k in wsse.keys], self.insertPosition(wsse))
+    def encryptMessage(self, env, wsse, keys):
+        env.getChild('Header').getChild('Security').insert([k.encryptMessage(env, wsse.wsse11) for k in keys], self.insertPosition(wsse))
 
-    def encryptMessageSecondPass(self, env, wsse):
-        env.getChild('Header').getChild('Security').insert([Key(k, True).encryptMessage(env, wsse.wsse11) for k in wsse.keys], self.insertPosition(wsse))
+    def encryptMessageSecondPass(self, env, wsse, keys):
+        env.getChild('Header').getChild('Security').insert([k.encryptMessage(env, wsse.wsse11, True) for k in keys], self.insertPosition(wsse))
 
     def insertPosition(self, wsse):
         return len(wsse.tokens) + (wsse.includeTimestamp and wsse.headerLayout != HEADER_LAYOUT_LAX_TIMESTAMP_LAST) and 1 or 0
@@ -247,11 +263,25 @@ class Timestamp(Token):
         return root
 
 class Signature(Object):
+    def buildTokens(self):
+        self.token = None
+        self.bst_id = None
+        if self.keyReference == xmlsec.KEY_REFERENCE_BINARY_SECURITY_TOKEN:
+            self.token = Element("BinarySecurityToken", ns=wssens)
+            self.token.setText(self.x509_issuer_serial.getCertificateText())
+            self.token.set("ValueType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3")
+            self.token.set("EncodingType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary")
+            self.bst_id = "BSTID-" + str(generate_unique_id())
+            self.token.set("wsu:Id", self.bst_id)
+        elif self.keyReference == xmlsec.KEY_REFERENCE_ENCRYPTED_KEY:
+            self.bst_id = "EncKeyId-7"
+        return self.token
+
     def signMessage(self, env, signOnlyEntireHeadersAndBody):
         elements_to_digest = []
         
         for elements_to_digest_func in self.signed_parts:
-            addl_elements = elements_to_digest_func(env)
+            addl_elements = elements_to_digest_func(env, self)
             if addl_elements is None:
                 continue
             if not isinstance(addl_elements, list):
@@ -263,21 +293,14 @@ class Signature(Object):
         if signOnlyEntireHeadersAndBody:
             self.verifyOnlyEntireHeadersAndBody(elements_to_digest)
 
-        bst_id = None
-        bst = None
-        if self.keyReference == xmlsec.KEY_REFERENCE_BINARY_SECURITY_TOKEN:
-            bst = Element("BinarySecurityToken", ns=wssens)
-            bst.setText(self.x509_issuer_serial.getCertificateText())
-            bst.set("ValueType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3")
-            bst.set("EncodingType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary")
-            bst_id = "BSTID-" + str(generate_unique_id())
-            bst.set("wsu:Id", bst_id)
+        if self.signatureAlgorithm == SIGNATURE_RSA_SHA1:
+            key = self.key
+        elif self.signatureAlgorithm == SIGNATURE_HMAC_SHA1:
+            key = self.symmetricKey.sym_key
 
-        sig = xmlsec.signMessage(self.key, self.x509_issuer_serial, elements_to_digest, self.keyReference, self.digest, bst_id)
-        if bst is not None:
-            return [bst, sig]
-        else:
-            return [sig]
+        sig = xmlsec.signMessage(key, self.x509_issuer_serial, elements_to_digest, self.keyReference, self.digest, self.signatureAlgorithm, self.bst_id)
+        self.element = sig
+        return sig
 
     def verifyOnlyEntireHeadersAndBody(self, elements_to_digest):
         for element in elements_to_digest:
@@ -285,20 +308,23 @@ class Signature(Object):
                 continue
             raise Exception, 'A descendant of a header or the body was signed, but only entire headers and body were permitted to be signed'
 
-    def __init__(self, options):
+    def __init__(self, options, sym_key=None):
         Object.__init__(self)
         self.key = options.key
         self.x509_issuer_serial = options.cert
         self.signed_parts = options.signedparts
         self.digest = options.digest
         self.keyReference = options.keyreference
+        self.signatureAlgorithm = options.signaturealgorithm
+        self.symmetricKey = sym_key
 
 class Key(Object):
-    def encryptMessage(self, env, use_encrypted_header=False):
+    def encryptMessage(self, env, use_encrypted_header=False, second_pass=False):
+        encrypted_parts = second_pass and self.second_pass_encrypted_parts or self.encrypted_parts
         elements_to_encrypt = []
         encrypted_headers = []
         
-        for elements_to_encrypt_func in self.encrypted_parts:
+        for elements_to_encrypt_func in encrypted_parts:
             addl_elements = elements_to_encrypt_func(env)
             if addl_elements[0] is None:
                 continue
@@ -315,17 +341,19 @@ class Key(Object):
                     else:
                         elements_to_encrypt.append((element, addl_elements[1]))
 
-        key = xmlsec.encryptMessage(self.cert, elements_to_encrypt, self.keyReference, self.keyTransport, self.blockEncryption)
+        key = xmlsec.encryptMessage(self.cert, self.symmetricKey, elements_to_encrypt, self.keyReference, self.keyTransport)
 
         for enc_hdr in encrypted_headers:
             enc_hdr.set('wsu:Id', enc_hdr[0].get('Id'))
             enc_hdr[0].unset('Id')
         return key
         
-    def __init__(self, options, second_pass=False):
+    def __init__(self, options):
         Object.__init__(self)
         self.cert = options.cert
-        self.encrypted_parts = second_pass and options.secondpassencryptedparts or options.encryptedparts
+        self.encrypted_parts = options.encryptedparts
+        self.second_pass_encrypted_parts = options.secondpassencryptedparts
         self.blockEncryption = options.blockencryption
         self.keyTransport = options.keytransport 
         self.keyReference = options.keyreference
+        self.symmetricKey = buildSymmetricKey(self.blockEncryption)

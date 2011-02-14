@@ -60,6 +60,7 @@ class SignatureOptions(Skin):
             Definition('key', (), None),
             Definition('cert', (), None),
             Definition('digest', basestring, DIGEST_SHA1),
+            Definition('signaturealgorithm', basestring, SIGNATURE_RSA_SHA1),
             Definition('keyreference', basestring, KEY_REFERENCE_BINARY_SECURITY_TOKEN),
             Definition('signedparts', (list, tuple), []),
         ]

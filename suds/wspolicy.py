@@ -103,7 +103,12 @@ class Policy(Object):
                     #    signature.keyReference = KEY_REFERENCE_ISSUER_SERIAL
                     #else:
                     #    signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
-                    signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
+                    if wsdl_policy.binding_type == 'AsymmetricBinding':
+                        signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
+                        signature.signatureAlgorithm = SIGNATURE_RSA_SHA1
+                    elif wsdl_policy.binding_type == 'SymmetricBinding':
+                        signature.keyReference = KEY_REFERENCE_ENCRYPTED_KEY
+                        signature.signatureAlgorithm = SIGNATURE_HMAC_SHA1
                     self.signatures.append(signature)
             if (wsdl_policy.binding.getChild("InitiatorToken") is not None and wsdl_policy.binding.getChild("RecipientToken") is not None) or \
                 wsdl_policy.binding.getChild("ProtectionToken") is not None:
@@ -148,6 +153,7 @@ class Policy(Object):
                 elif 'EndorsingSupportingToken' in token.name and token.getChild("Policy").getChild("X509Token") is not None:
                     signature = Object()
                     signature.signedParts = self.buildParts(token.getChild("Policy").getChild("SignedParts"))
+                    signature.signatureAlgorithm = SIGNATURE_RSA_SHA1
                     if wsdl_policy.binding_type == 'TransportBinding':
                         signature.signedParts.append(('timestamp',))
                     else:
@@ -226,6 +232,8 @@ class Policy(Object):
                     options.wsse.signatures[index].digest = self.digestAlgorithm
                 if sig.keyReference is not None:
                     options.wsse.signatures[index].keyreference = sig.keyReference
+                if sig.signatureAlgorithm is not None:
+                    options.wsse.signatures[index].signaturealgorithm = sig.signatureAlgorithm
 
                 signed_parts = []
                 for part in sig.signedParts:

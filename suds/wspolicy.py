@@ -25,12 +25,6 @@ from suds.transport.options import *
 from suds.options import Options
 from suds.sax.date import DateTime
 
-def override(base_policy, override_policy):
-    new_policy = Policy()
-    merge(base_policy, new_policy)
-    merge(override_policy, new_policy)
-    return new_policy
-
 class Policy(Object):
     def __init__(self, initiatorPolicy=True):
         Object.__init__(self)

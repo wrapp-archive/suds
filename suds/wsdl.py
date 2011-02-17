@@ -271,9 +271,9 @@ class Definitions(WObject):
                 p.methods[name] = m
     
     def build_policy(self, binding, msg, initiator):
-        policy = wspolicy.Policy(initiator)
+        policy = wspolicy.Policy()
         for wsdl_policy in binding.policies + msg.policies:
-            policy.addFromWsdl(wsdl_policy)
+            wspolicy.PolicyConverter().addFromWsdl(policy, wsdl_policy, initiator)
         return policy
     
     def set_wrapped(self):
@@ -418,24 +418,10 @@ class Policy(NamedObject):
         @type definitions: L{Definitions}
         """
         NamedObject.__init__(self, root, definitions, ('Id', wsuns))
-        # WCF likes to wrap the policy in a meaningless wsp:ExactlyOne/wsp:All combo
-        # TODO full policy parsing will remove the need for this
-        if root.getChild('ExactlyOne') is not None and len(root.getChildren()) == 1:
-            eo = root.getChild('ExactlyOne')
-            if eo.getChild('All') is not None and len(eo.getChildren()) == 1:
-                self.root = root = eo.getChild('All')
-        self.binding = root.getChild('AsymmetricBinding') or root.getChild('SymmetricBinding') or root.getChild('TransportBinding')
-        self.tokens = filter(lambda x: x.name.endswith("Tokens"), root.getChildren())
-        self.signed_parts = None
-        self.encrypted_parts = None
-        if root.getChild('SignedParts') is not None:
-            self.signed_parts = root.getChild('SignedParts').getChildren()
-        if root.getChild('EncryptedParts') is not None:
-            self.encrypted_parts = root.getChild('EncryptedParts').getChildren()
         self.binding_type = None
-        if self.binding is not None:
-            self.binding_type = self.binding.name
-            self.binding = self.binding.getChild('Policy')
+        binding = root.getChild('AsymmetricBinding') or root.getChild('SymmetricBinding') or root.getChild('TransportBinding')
+        if binding is not None:
+            self.binding_type = binding.name
         
 class Part(NamedObject):
     """

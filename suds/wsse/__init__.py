@@ -75,8 +75,9 @@ class SecurityProcessor:
         keys = [Key(options) for options in wsse.keys]
         for key in keys:
             self.symmetricKeys[key.cipherValueSha1] = key.symmetricKey.sym_key
-        signatures[0].symmetricKey = keys[0].symmetricKey
-        signatures[0].encKeyUri = "#" + keys[0].keyId
+        if len(keys) > 0:
+            signatures[0].symmetricKey = keys[0].symmetricKey
+            signatures[0].encKeyUri = "#" + keys[0].keyId
 
         if wsse.encryptThenSign:
             self.encryptMessage(soapenv, wsse, keys)

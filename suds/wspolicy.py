@@ -187,10 +187,14 @@ class PolicyConverter:
                             policy.keyTransport = KEY_TRANSPORT_RSA_OAEP
 
         if elt.name.endswith("Tokens") and self.initiator:
+            type = None
+            index = None
             if elt.getChild("Policy").getChild("UsernameToken") is not None:
                 token = Object()
                 policy.tokens.append(token)
-            elif 'EndorsingSupportingToken' in elt.name and elt.getChild("Policy").getChild("X509Token") is not None:
+                type = 'token'
+                index = len(policy.tokens) - 1
+            if 'Endorsing' in elt.name and elt.getChild("Policy").getChild("X509Token") is not None:
                 signature = Object()
                 signature.signedParts = self.buildParts(elt.getChild("Policy").getChild("SignedParts"))
                 signature.signatureAlgorithm = SIGNATURE_RSA_SHA1
@@ -199,7 +203,7 @@ class PolicyConverter:
                 else:
                     signature.signedParts.append(('primary_signature',))
                     if policy.protectTokens:
-                        signature.signedParts.append(('elt',))
+                        signature.signedParts.append(('token', 'self'))
                 # This would technically be the correct behavior, but WCF specifies that thumbprint references
                 # are supported, but it can't use them for a primary signature.  Support for BinarySecurityTokens
                 # is always required, so just use them
@@ -211,6 +215,12 @@ class PolicyConverter:
                 #    signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
                 signature.keyReference = KEY_REFERENCE_BINARY_SECURITY_TOKEN
                 policy.signatures.append(signature)
+                type = 'signature'
+                index = len(policy.signatures) - 1
+            if 'Signed' in elt.name and wsdl_policy.binding_type <> 'TransportBinding' and type is not None:
+                baseSignedParts.append(('token', type, index))
+            if 'Encrypted' in elt.name and wsdl_policy.binding_type <> 'TransportBinding' and type is not None:
+                baseEncryptedParts.append(('token', type, index))
 
         if (elt.name == "Addressing" or elt.name == "UsingAddressing") and policy.addressing <> True:
             if self.optional == False:
@@ -309,7 +319,12 @@ class Policy(Object):
                     elif part[0] == 'primary_signature':
                         signed_parts.append(lambda env, sig: sig.primary_sig)
                     elif part[0] == 'token':
-                        signed_parts.append(lambda env, sig: sig.token)
+                        if part[1] == 'self':
+                            signed_parts.append(lambda env, sig: sig.token)
+                        elif part[1] == 'token':
+                            signed_parts.append(lambda env, sig: env.getChild("Header").getChildren("UsernameToken")[part[2]])
+                        elif part[1] == 'signature':
+                            signed_parts.append(lambda env, sig: env.getChild("Header").getChildren("BinarySecurityToken")[part[2]])
                 
                 options.wsse.signatures[index].signedparts = signed_parts
 
@@ -333,6 +348,11 @@ class Policy(Object):
                         encrypted_parts.append(create_encrypted_header_func(part[1], part[2]))
                     elif part[0] == 'signature':
                         encrypted_parts.append(lambda env: (env.getChild('Header').getChild('Security').getChild('Signature'), 'Element'))
+                    elif part[0] == 'token':
+                        if part[1] == 'token':
+                            encrypted_parts.append(lambda env, sig: env.getChild("Header").getChildren("UsernameToken")[part[2]])
+                        elif part[1] == 'signature':
+                            encrypted_parts.append(lambda env, sig: env.getChild("Header").getChildren("BinarySecurityToken")[part[2]])
 
                 options.wsse.keys[index].encryptedparts = encrypted_parts
 

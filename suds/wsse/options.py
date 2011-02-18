@@ -76,5 +76,6 @@ class KeyOptions(Skin):
             Definition('blockencryption', basestring, BLOCK_ENCRYPTION_AES128_CBC),
             Definition('keytransport', basestring, KEY_TRANSPORT_RSA_OAEP),
             Definition('keyreference', basestring, KEY_REFERENCE_ISSUER_SERIAL),
+            Definition('includereflist', bool, True),
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))

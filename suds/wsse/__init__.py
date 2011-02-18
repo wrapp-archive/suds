@@ -368,7 +368,7 @@ class Key(Object):
         for enc_hdr in encrypted_headers:
             enc_hdr.set('wsu:Id', enc_hdr[0].get('Id'))
             enc_hdr[0].unset('Id')
-        if False:
+        if self.includeRefList:
             self.encryptedKey.append(ref_list)
             return self.encryptedKey
         else:
@@ -382,5 +382,6 @@ class Key(Object):
         self.blockEncryption = options.blockencryption
         self.keyTransport = options.keytransport 
         self.keyReference = options.keyreference
+        self.includeRefList = options.includereflist
         self.symmetricKey = buildSymmetricKey(self.blockEncryption)
         self.buildEncryptedKey()

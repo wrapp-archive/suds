@@ -157,6 +157,10 @@ class PolicyConverter:
                     key.keyReference = KEY_REFERENCE_ISSUER_SERIAL
                 else:
                     key.keyReference = KEY_REFERENCE_ISSUER_SERIAL
+                if elt.name == 'AsymmetricBinding':
+                    key.includeRefList = True
+                elif elt.name == 'SymmetricBinding':
+                    key.includeRefList = False
                 key.encryptedParts = self.buildParts(token.getChild("Policy").getChild("EncryptedParts"))
                 key.secondPassEncryptedParts = []
                 policy.keys.append(key)
@@ -319,6 +323,7 @@ class Policy(Object):
                     options.wsse.keys[index].keytransport = self.keyTransport
                 if key.keyReference is not None:
                     options.wsse.keys[index].keyreference = key.keyReference
+                options.wsse.keys[index].includereflist = key.includeRefList
 
                 encrypted_parts = []
                 for part in key.encryptedParts:

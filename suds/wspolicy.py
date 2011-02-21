@@ -30,15 +30,31 @@ wspns2 = (None, 'http://schemas.xmlsoap.org/ws/2004/09/policy')
 spns = (None, 'http://docs.oasis-open.org/ws-sx/ws-securitypolicy/200702')
 
 class PolicyConverter:
-    def addFromWsdl(self, policy, wsdl_policy, initiator=True):
-        self.policy = policy
+    def __init__(self, initiator):
+        self.policy = Policy()
+        self.initiator = initiator
+        self.baseSignedParts = []
+        self.baseEncryptedParts = []
+        self.secondPassEncryptedParts = []
+        self.bindingType = None
+
+    def addFromWsdl(self, wsdl_policy):
         self.wsdl_policy = wsdl_policy
         self.optional = False
-        self.initiator = initiator
         self.visitMethods = {('All', None): self.visitAll, \
                 ('ExactlyOne', None): self.visitExactlyOne, \
                 ('Policy', None): self.visitAll, }
         self.visit(wsdl_policy.root)
+
+    def finishPolicy(self):
+        if self.bindingType <> 'TransportBinding':
+            if len(self.policy.signatures) > 0:
+                self.policy.signatures[0].signedParts.extend(self.baseSignedParts)
+            if len(self.policy.keys) > 0:
+                self.policy.keys[0].encryptedParts.extend(self.baseEncryptedParts)
+                self.policy.keys[0].secondPassEncryptedParts.extend(self.secondPassEncryptedParts)
+
+        return self.policy
 
     def visit(self, elt):
         optional_replaced = False
@@ -91,11 +107,8 @@ class PolicyConverter:
         policy = self.policy
         wsdl_policy = self.wsdl_policy
 
-        baseSignedParts = []
-        baseEncryptedParts = []
-        secondPassEncryptedParts = []
-
         if elt.name == 'TransportBinding' or elt.name == 'SymmetricBinding' or elt.name == 'AsymmetricBinding':
+            self.bindingType = elt.name
             binding = elt.getChild('Policy')
 
             policy.wsseEnabled = True
@@ -105,9 +118,9 @@ class PolicyConverter:
                 policy.encryptThenSign = True
             if binding.getChild("EncryptSignature") is not None:
                 if policy.encryptThenSign:
-                    secondPassEncryptedParts.append(('signature',))
+                    self.secondPassEncryptedParts.append(('signature',))
                 else:
-                    baseEncryptedParts.append(('signature',))
+                    self.baseEncryptedParts.append(('signature',))
             if binding.getChild("OnlySignEntireHeadersAndBody") is not None:
                 policy.onlySignEntireHeadersAndBody = True
             if binding.getChild("ProtectTokens") is not None:
@@ -218,9 +231,9 @@ class PolicyConverter:
                 type = 'signature'
                 index = len(policy.signatures) - 1
             if 'Signed' in elt.name and wsdl_policy.binding_type <> 'TransportBinding' and type is not None:
-                baseSignedParts.append(('token', type, index))
+                self.baseSignedParts.append(('token', type, index))
             if 'Encrypted' in elt.name and wsdl_policy.binding_type <> 'TransportBinding' and type is not None:
-                baseEncryptedParts.append(('token', type, index))
+                self.baseEncryptedParts.append(('token', type, index))
 
         if (elt.name == "Addressing" or elt.name == "UsingAddressing") and policy.addressing <> True:
             if self.optional == False:
@@ -229,16 +242,9 @@ class PolicyConverter:
                 policy.addressing = None # use what the user specifies
 
         if elt.name == "SignedParts":
-            baseSignedParts.extend(self.buildParts(elt))
+            self.baseSignedParts.extend(self.buildParts(elt))
         elif elt.name == "EncryptedParts":
-            baseEncryptedParts.extend(self.buildParts(elt))
-
-        if wsdl_policy.binding_type <> 'TransportBinding':
-            if len(policy.signatures) > 0:
-                policy.signatures[0].signedParts.extend(baseSignedParts)
-            if len(policy.keys) > 0:
-                policy.keys[0].encryptedParts.extend(baseEncryptedParts)
-                policy.keys[0].secondPassEncryptedParts.extend(secondPassEncryptedParts)
+            self.baseEncryptedParts.extend(self.buildParts(elt))
 
         if elt.name == "Wss10":
             policy.wsse11 = False
@@ -298,7 +304,19 @@ class Policy(Object):
                     
             def create_encrypted_header_func(ns, name):
                 return lambda env: (env.getChild("Header").getChildren(name, ns=(None, ns)), 'Element')
-                    
+
+            def create_signed_username_token_func(index):
+                return lambda env, sig: env.getChild("Header").getChild("Security").getChildren("UsernameToken")[index]
+
+            def create_signed_binary_token_func(index):
+                return lambda env, sig: env.getChild("Header").getChild("Security").getChildren("BinarySecurityToken")[index]
+
+            def create_encrypted_username_token_func(index):
+                return lambda env: (env.getChild("Header").getChild("Security").getChildren("UsernameToken")[index], 'Element')
+
+            def create_encrypted_binary_token_func(index):
+                return lambda env: (env.getChild("Header").getChild("Security").getChildren("BinarySecurityToken")[index], 'Element')
+
             index = 0
             for sig in self.signatures:
                 if self.digestAlgorithm is not None:
@@ -322,9 +340,9 @@ class Policy(Object):
                         if part[1] == 'self':
                             signed_parts.append(lambda env, sig: sig.token)
                         elif part[1] == 'token':
-                            signed_parts.append(lambda env, sig: env.getChild("Header").getChildren("UsernameToken")[part[2]])
+                            signed_parts.append(create_signed_username_token_func(part[2]))
                         elif part[1] == 'signature':
-                            signed_parts.append(lambda env, sig: env.getChild("Header").getChildren("BinarySecurityToken")[part[2]])
+                            signed_parts.append(create_signed_binary_token_func(part[2]))
                 
                 options.wsse.signatures[index].signedparts = signed_parts
 
@@ -350,9 +368,9 @@ class Policy(Object):
                         encrypted_parts.append(lambda env: (env.getChild('Header').getChild('Security').getChild('Signature'), 'Element'))
                     elif part[0] == 'token':
                         if part[1] == 'token':
-                            encrypted_parts.append(lambda env, sig: env.getChild("Header").getChildren("UsernameToken")[part[2]])
+                            encrypted_parts.append(create_encrypted_username_token_func(part[2]))
                         elif part[1] == 'signature':
-                            encrypted_parts.append(lambda env, sig: env.getChild("Header").getChildren("BinarySecurityToken")[part[2]])
+                            encrypted_parts.append(create_encrypted_binary_token_func(part[2]))
 
                 options.wsse.keys[index].encryptedparts = encrypted_parts
 

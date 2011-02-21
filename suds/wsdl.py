@@ -271,10 +271,10 @@ class Definitions(WObject):
                 p.methods[name] = m
     
     def build_policy(self, binding, msg, initiator):
-        policy = wspolicy.Policy()
+        converter = wspolicy.PolicyConverter(initiator)
         for wsdl_policy in binding.policies + msg.policies:
-            wspolicy.PolicyConverter().addFromWsdl(policy, wsdl_policy, initiator)
-        return policy
+            converter.addFromWsdl(wsdl_policy)
+        return converter.finishPolicy()
     
     def set_wrapped(self):
         """ set (wrapped|bare) flag on messages """

@@ -32,6 +32,7 @@ spns = (None, 'http://docs.oasis-open.org/ws-sx/ws-securitypolicy/200702')
 class PolicyConverter:
     def __init__(self, initiator):
         self.policy = Policy()
+        self.policy.signatures.append(None)
         self.initiator = initiator
         self.baseSignedParts = []
         self.baseEncryptedParts = []
@@ -47,6 +48,8 @@ class PolicyConverter:
         self.visit(wsdl_policy.root)
 
     def finishPolicy(self):
+        if self.policy.signatures[0] is None:
+            self.policy.signatures[0:1] = None
         if self.bindingType <> 'TransportBinding':
             if len(self.policy.signatures) > 0:
                 self.policy.signatures[0].signedParts.extend(self.baseSignedParts)
@@ -159,7 +162,7 @@ class PolicyConverter:
                     elif elt.name == 'SymmetricBinding':
                         signature.keyReference = KEY_REFERENCE_ENCRYPTED_KEY
                         signature.signatureAlgorithm = SIGNATURE_HMAC_SHA1
-                    policy.signatures.append(signature)
+                    policy.signatures[0] = signature
             if (binding.getChild("InitiatorToken") is not None and binding.getChild("RecipientToken") is not None) or \
                 binding.getChild("ProtectionToken") is not None:
                 key = Object()

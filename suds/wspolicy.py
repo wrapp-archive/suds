@@ -408,10 +408,14 @@ class Policy(Object):
         id_blocks = dict()
         
         def collectSignedDataBlock(elt):
-            if not elt.get("Id", ns=wsuns):
+            id = elt.get("Id", ns=wsuns) or elt.get("Id")
+            if id is None:
                 return
             
-            id_blocks[elt.get("Id", ns=wsuns)] = elt
+            if id in id_blocks:
+                raise Exception, 'Duplicate IDs are not allowed in secured SOAP message'
+            
+            id_blocks[id] = elt
 
         env.walk(collectSignedDataBlock)
 

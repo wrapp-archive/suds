@@ -143,7 +143,7 @@ class SecurityProcessor:
         if wsse.includeTimestamp and wsse.headerLayout != HEADER_LAYOUT_LAX_TIMESTAMP_LAST:
             root.append(Timestamp().xml())
         for t in wsse.tokens:
-            root.append(UsernameToken(t.username, t.password).xml())
+            root.append(UsernameToken(t.username, t.password, t.includenonce).xml())
         if wsse.includeTimestamp and wsse.headerLayout == HEADER_LAYOUT_LAX_TIMESTAMP_LAST:
             root.append(Timestamp().xml())
         return root
@@ -181,7 +181,7 @@ class UsernameToken(Token):
     @type created: L{datetime}
     """
 
-    def __init__(self, username=None, password=None):
+    def __init__(self, username=None, password=None, includeNonce=True):
         """
         @param username: A username.
         @type username: str
@@ -191,8 +191,12 @@ class UsernameToken(Token):
         Token.__init__(self)
         self.username = username
         self.password = password
-        self.nonce = None
-        self.created = None
+        if includeNonce:
+            self.setnonce(None)
+            self.setcreated(None)
+        else:
+            self.nonce = None
+            self.created = None
         
     def setnonce(self, text=None):
         """
@@ -245,7 +249,7 @@ class UsernameToken(Token):
             root.append(n)
         if self.created is not None:
             n = Element('Created', ns=wsuns)
-            n.setText(str(UTC(self.created)))
+            n.setText(str(UTC(self.created - timedelta(microseconds=self.created.microsecond))))
             root.append(n)
         return root
 

@@ -50,6 +50,7 @@ class TokenOptions(Skin):
         definitions = [
             Definition('username', basestring, None),
             Definition('password', basestring, None),
+            Definition('includenonce', bool, True),
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))
 

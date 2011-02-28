@@ -49,7 +49,7 @@ class PolicyConverter:
 
     def finishPolicy(self):
         if self.policy.signatures[0] is None:
-            self.policy.signatures[0:1] = None
+            del self.policy.signatures[0]
         if self.bindingType <> 'TransportBinding':
             if len(self.policy.signatures) > 0:
                 self.policy.signatures[0].signedParts.extend(self.baseSignedParts)

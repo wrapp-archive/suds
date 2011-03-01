@@ -705,6 +705,7 @@ class SoapClient:
         plugins.message.parsed(reply=replyroot)
 
         if len(reply) > 0:
+            decrypted_elements = None
             if self.options.wsse.enabled:
                 decrypted_elements = self.securityProcessor.processIncomingMessage(replyroot.getChild('Envelope'), self.options.wsse)
             reply, result = binding.get_reply(self.method, replyroot)

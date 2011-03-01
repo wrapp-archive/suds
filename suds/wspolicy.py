@@ -400,7 +400,7 @@ class Policy(Object):
         timestamp = env.childAtPath('Header/Security/Timestamp')
         if self.includeTimestamp and timestamp is None:
             raise Exception, 'WSDL policy required Timestamp, but Timestamp was not present in reply'
-        if timestamp.getChild('Expires') is not None:
+        if timestamp is not None and timestamp.getChild('Expires') is not None:
             expiry_time = DateTime(timestamp.getChild('Expires').getText()).datetime
             if expiry_time < datetime.now():
                 raise Exception, 'Message expiration time has passed'
@@ -420,13 +420,14 @@ class Policy(Object):
         env.walk(collectSignedDataBlock)
 
         signed_data_blocks = set()
-        for sig_elt in env.getChild("Header").getChild("Security").getChildren("Signature", ns=dsns):
-            for signed_part in sig_elt.getChild("SignedInfo", ns=dsns).getChildren("Reference", ns=dsns):
-                signed_part_id = signed_part.get("URI")
+        if env.childAtPath("Header/Security/Signature") is not None:
+            for sig_elt in env.getChild("Header").getChild("Security").getChildren("Signature", ns=dsns):
+                for signed_part in sig_elt.getChild("SignedInfo", ns=dsns).getChildren("Reference", ns=dsns):
+                    signed_part_id = signed_part.get("URI")
 
-                if not signed_part_id[0] == "#":
-                    raise Exception, "Cannot handle non-local data references"
-                signed_data_blocks.add(id(id_blocks[signed_part_id[1:]]))
+                    if not signed_part_id[0] == "#":
+                        raise Exception, "Cannot handle non-local data references"
+                    signed_data_blocks.add(id(id_blocks[signed_part_id[1:]]))
 
         policy_signed_blocks = set()
         for sig in self.signatures:

@@ -39,8 +39,7 @@ class Action(Object):
 class MessageID(Object):
     def xml(self):
         messageid = Element('MessageID', ns=wsa)
-        messageid_bytes = bytearray([random.getrandbits(8) for i in range(0, 16)])
-        messageid.setText("mid:" + ''.join(["%02X" % x for x in messageid_bytes]))
+        messageid.setText("mid:" + ''.join(["%02X" % random.getrandbits(8) for i in range(0, 16)]))
         return messageid
 
 class To(Object):

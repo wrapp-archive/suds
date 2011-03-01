@@ -177,8 +177,8 @@ def buildEncryptedKey(key_id, cert, sym_key, reference_type=KEY_REFERENCE_ISSUER
 def buildSymmetricKey(block_encryption_algorithm=BLOCK_ENCRYPTION_AES128_CBC):
     sym_key = Object()
     block_encryption_props = blockEncryptionProperties[block_encryption_algorithm]
-    sym_key.sym_key = bytearray([random.getrandbits(8) for i in range(0, block_encryption_props['key_size'])])
-    sym_key.iv = bytearray([random.getrandbits(8) for i in range(0, block_encryption_props['iv_size'])])
+    sym_key.sym_key = ''.join([chr(random.getrandbits(8)) for i in range(0, block_encryption_props['key_size'])])
+    sym_key.iv = ''.join([chr(random.getrandbits(8)) for i in range(0, block_encryption_props['iv_size'])])
     sym_key.block_encryption_algorithm = block_encryption_algorithm
     return sym_key
 

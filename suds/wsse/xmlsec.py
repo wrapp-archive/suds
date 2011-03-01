@@ -24,7 +24,6 @@ from pki import *
 from base64 import b64encode,b64decode
 from M2Crypto import *
 import random
-import hashlib
 from suds.sudsobject import Object
 
 dsns = \
@@ -51,16 +50,16 @@ DIGEST_RIPEMD160 = 'http://www.w3.org/2001/04/xmlenc#ripemd160'
 digestProperties = dict()
 digestProperties[DIGEST_SHA1] = {
     'uri': DIGEST_SHA1,
-    'hashlib_alg': 'sha1'}
+    'openssl_alg': 'sha1'}
 digestProperties[DIGEST_SHA256] = {
     'uri': DIGEST_SHA256,
-    'hashlib_alg': 'sha256'}
+    'openssl_alg': 'sha256'}
 digestProperties[DIGEST_SHA512] = {
     'uri': DIGEST_SHA512,
-    'hashlib_alg': 'sha512'}
+    'openssl_alg': 'sha512'}
 digestProperties[DIGEST_RIPEMD160] = {
     'uri': DIGEST_RIPEMD160,
-    'hashlib_alg': 'ripemd160'}
+    'openssl_alg': 'ripemd160'}
 
 BLOCK_ENCRYPTION_AES128_CBC = 'http://www.w3.org/2001/04/xmlenc#aes128-cbc'
 BLOCK_ENCRYPTION_AES192_CBC = 'http://www.w3.org/2001/04/xmlenc#aes192-cbc'
@@ -227,8 +226,8 @@ def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUE
         reference.set("URI", "#" + element_id)
         element_content = element_to_digest.canonical()
         digest_props = digestProperties[digest_algorithm]
-        hash = hashlib.new(digest_props['hashlib_alg'])
-        hash.update(element_content)
+        hash = EVP.MessageDigest(digest_props['openssl_alg'])
+        hash.update(element_content.encode('utf-8'))
         digest_value.setText(b64encode(hash.digest()))
 
     element_to_sign = signed_info
@@ -320,8 +319,8 @@ def verifyMessage(env, keystore, symmetric_keys):
             element_digested = signed_data_blocks[signed_part_id[1:]]
             element_content = element_digested.canonical(prefix_list)
             digest_props = digestProperties[signed_part.getChild("DigestMethod").get("Algorithm")]
-            hash = hashlib.new(digest_props['hashlib_alg'])
-            hash.update(element_content)
+            hash = EVP.MessageDigest(digest_props['openssl_alg'])
+            hash.update(element_content.encode('utf-8'))
             if hash.digest() <> enclosed_digest:
                 raise Exception, "digest for section with id " + signed_part_id[1:] + " failed verification"
 

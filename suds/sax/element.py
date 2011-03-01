@@ -812,8 +812,10 @@ class Element:
 
     def canonical(self, prefixList=[]):
         eligiblePrefixes = reduce(lambda x,y: x | set(y.nsprefixes.keys()), self.ancestors(), set())
-        if any(map(lambda x: x.expns is not None, self.ancestors())):
-            eligiblePrefixes.add('#default') 
+        for ancestor in self.ancestors():
+            if ancestor.expns is not None:
+                eligiblePrefixes.add('#default')
+                break
         return self.canonical_(prefixList, eligiblePrefixes)
     
     def canonical_(self, prefixList, eligiblePrefixes):

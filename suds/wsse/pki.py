@@ -14,7 +14,7 @@ class X509IssuerSerialKeypairReference:
         return self.serial
     
     def __hash__(self):
-        return 17 * self.issuer.__hash__() + 23 * self.serial.__hash__()
+        return self.issuer.__hash__() ^ self.serial.__hash__()
     
     def __eq__(self, other):
         return self.issuer == other.getIssuer() and self.serial == other.getSerial()
@@ -34,7 +34,7 @@ class X509FingerprintKeypairReference:
         return self.algorithm
     
     def __hash__(self):
-        return 17 * self.fingerprint.__hash__() + 23 * self.algorithm.__hash__()
+        return self.fingerprint.__hash__() ^ self.algorithm.__hash__()
     
     def __eq__(self, other):
         return self.fingerprint == other.getFingerprint() and self.algorithm == other.getAlgorithm()

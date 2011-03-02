@@ -105,6 +105,11 @@ class X509PemFileCertificate:
         x509_cert_issuer.L and issuer_name_list.append("L=%s" % x509_cert_issuer.L)
         x509_cert_issuer.ST and issuer_name_list.append("ST=%s" % x509_cert_issuer.ST)
         x509_cert_issuer.C and issuer_name_list.append("C=%s" % x509_cert_issuer.C)
+	# M2Crypto returns DC components in reverse order (?!?!?!?)
+	DC = x509_cert_issuer.get_entries_by_nid(391)
+	DC.reverse()
+	for entry in DC:
+	    issuer_name_list.append("DC=%s" % entry.get_data())
         return X509IssuerSerialKeypairReference(','.join(issuer_name_list), x509_cert.get_serial_number())
 
 class RsaPemFilePrivateKey:

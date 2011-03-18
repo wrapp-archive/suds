@@ -1,6 +1,7 @@
 from M2Crypto import *
 import string
 from base64 import b64encode
+import sha
 
 class X509IssuerSerialKeypairReference:
     def __init__(self, issuer, serial):
@@ -65,6 +66,12 @@ class X509PemFileCertificate:
         self.md5fingerprint = X509FingerprintKeypairReference(self.x509_cert.get_fingerprint('md5'), 'md5')
         self.sha1fingerprint = X509FingerprintKeypairReference(self.x509_cert.get_fingerprint('sha1'), 'sha1')
         self.subjectKeyIdentifier = X509SubjectKeyIdentifierKeypairReference(self.x509_cert.get_ext('subjectKeyIdentifier').get_value().replace(':',''))
+        sha1 = sha.new()
+        sha1.update(self.x509_cert.get_pubkey().as_der())
+        sha1_identifier = sha1.digest()
+        self.sha1SubjectKeyIdentifier = X509SubjectKeyIdentifierKeypairReference(sha1_identifier.encode('hex'))
+        rfc3280_identifier = chr(0x40 | (ord(sha1_identifier[-8]) & 0xf)) + sha1_identifier[-7:]
+        self.rfc3280SubjectKeyIdentifier = X509SubjectKeyIdentifierKeypairReference(rfc3280_identifier.encode('hex'))
 
     def getX509IssuerSerial(self):
         return self.x509_issuer_serial
@@ -94,7 +101,7 @@ class X509PemFileCertificate:
         return self.x509_cert.get_pubkey()
     
     def getReferences(self):
-        return [self.x509_issuer_serial, self.md5fingerprint, self.sha1fingerprint, self.subjectKeyIdentifier]
+        return [self.x509_issuer_serial, self.md5fingerprint, self.sha1fingerprint, self.subjectKeyIdentifier, self.sha1SubjectKeyIdentifier, self.rfc3280SubjectKeyIdentifier]
     
     def build_x509_issuer_serial(self, x509_cert):
         x509_cert_issuer = x509_cert.get_issuer()

@@ -107,6 +107,7 @@ KEY_REFERENCE_ISSUER_SERIAL = 'IssuerSerial'
 KEY_REFERENCE_FINGERPRINT = 'Fingerprint'
 KEY_REFERENCE_BINARY_SECURITY_TOKEN = 'BinarySecurityToken'
 KEY_REFERENCE_ENCRYPTED_KEY = 'EncryptedKey'
+KEY_REFERENCE_SUBJECT_KEY_IDENTIFIER = 'SubjectKeyIdentifier'
 
 random = random.SystemRandom()
 
@@ -128,6 +129,12 @@ def build_key_info(cert, reference_type, ref_id=None):
         issuer_serial.append(serial_number)
         x509_data.append(issuer_serial)
         sec_token_ref.append(x509_data)
+    elif reference_type == KEY_REFERENCE_SUBJECT_KEY_IDENTIFIER:
+        key_ident = Element("KeyIdentifier", ns=wssens)
+        key_ident.set("EncodingType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary")
+        key_ident.set("ValueType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#X509SubjectKeyIdentifier")
+        key_ident.setText(b64encode(cert.getSubjectKeyIdentifier().getSubjectKeyIdentifier().decode('hex')))
+        sec_token_ref.append(key_ident)
     elif reference_type == KEY_REFERENCE_FINGERPRINT:
         key_ident = Element("KeyIdentifier", ns=wssens)
         key_ident.set("EncodingType", "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary")

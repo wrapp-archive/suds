@@ -302,9 +302,15 @@ class Policy(Object):
             if self.headerLayout is not None:
                 options.wsse.headerLayout = self.headerLayout
 
+            def create_signed_header_ns_func(ns):
+                return lambda env, sig: filter(lambda header: header.namespace()[1] == ns, env.getChild("Header").getChildren())
+                    
             def create_signed_header_func(ns, name):
                 return lambda env, sig: env.getChild("Header").getChildren(name, ns=(None, ns))
                     
+            def create_encrypted_header_ns_func(ns, name):
+                return lambda env: [(hdr, 'Element') for hdr in filter(lambda header: header.namespace()[1] == ns, env.getChild("Header").getChildren())]
+
             def create_encrypted_header_func(ns, name):
                 return lambda env: (env.getChild("Header").getChildren(name, ns=(None, ns)), 'Element')
 
@@ -334,7 +340,10 @@ class Policy(Object):
                     if part[0] == 'body':
                         signed_parts.append(lambda env, sig: env.getChild("Body"))
                     elif part[0] == 'header':
-                        signed_parts.append(create_signed_header_func(part[1], part[2]))
+                        if part[2] is None:
+                            signed_parts.append(create_signed_header_ns_func(part[1]))
+                        else:
+                            signed_parts.append(create_signed_header_func(part[1], part[2]))
                     elif part[0] == 'timestamp':
                         signed_parts.append(lambda env, sig: env.childAtPath("Header/Security/Timestamp"))
                     elif part[0] == 'primary_signature':
@@ -366,7 +375,10 @@ class Policy(Object):
                     if part[0] == 'body':
                         encrypted_parts.append(lambda env: (env.getChild("Body"), "Content"))
                     elif part[0] == 'header':
-                        encrypted_parts.append(create_encrypted_header_func(part[1], part[2]))
+                        if part[2] is None:
+                            encrypted_parts.append(create_encrypted_header_ns_func(part[1]))
+                        else:
+                            encrypted_parts.append(create_encrypted_header_func(part[1], part[2]))
                     elif part[0] == 'signature':
                         encrypted_parts.append(lambda env: (env.getChild('Header').getChild('Security').getChild('Signature'), 'Element'))
                     elif part[0] == 'token':

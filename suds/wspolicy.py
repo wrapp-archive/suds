@@ -447,8 +447,12 @@ class Policy(Object):
                 if part[0] == 'body':
                     policy_signed_blocks.add(id(env.getChild("Body")))
                 elif part[0] == 'header':
-                    for x in env.getChild("Header").getChildren(part[2], ns=(None, part[1])):
-                        policy_signed_blocks.add(id(x))
+                    if part[2] is None:
+                        for x in filter(lambda header: header.namespace()[1] == part[1], env.getChild("Header").getChildren()):
+                            policy_signed_blocks.add(id(x))
+                    else:
+                        for x in env.getChild("Header").getChildren(part[2], ns=(None, part[1])):
+                            policy_signed_blocks.add(id(x))
                 elif part[0] == 'signature':
                     policy_signed_blocks.add(id(env.getChild("Header").getChild("Security").getChild("Signature")))
         if self.includeTimestamp and len(self.signatures) > 0:
@@ -469,8 +473,12 @@ class Policy(Object):
                     for child in env.getChild("Body").getChildren():
                         policy_encrypted_blocks.add(id(child))
                 elif part[0] == 'header':
-                    for x in env.getChild("Header").getChildren(part[2], ns=(None, part[1])):
-                        policy_encrypted_blocks.add(id(x))
+                    if part[2] is None:
+                        for x in filter(lambda header: header.namespace()[1] == part[1], env.getChild("Header").getChildren()):
+                            policy_encrypted_blocks.add(id(x))
+                    else:
+                        for x in env.getChild("Header").getChildren(part[2], ns=(None, part[1])):
+                            policy_encrypted_blocks.add(id(x))
                 elif part[0] == 'signature':
                     policy_encrypted_blocks.add(id(env.getChild("Header").getChild("Security").getChild("Signature")))
 

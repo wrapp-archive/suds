@@ -1,6 +1,6 @@
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the (LGPL) GNU Lesser General Public License as
-# published by the Free Software Foundation; either version 3 of the 
+# published by the Free Software Foundation; either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -30,7 +30,7 @@ dsns = \
     ('ds',
      'http://www.w3.org/2000/09/xmldsig#')
 wssens = \
-    ('wsse', 
+    ('wsse',
      'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd')
 wsuns = \
     ('wsu',
@@ -152,7 +152,7 @@ def build_key_info(cert, reference_type, ref_id=None):
         reference.set("ValueType", "http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKey")
         sec_token_ref.append(reference)
     key_info.append(sec_token_ref)
-    
+
     return key_info
 
 def buildEncryptedKey(key_id, cert, sym_key, reference_type=KEY_REFERENCE_ISSUER_SERIAL, block_encryption=BLOCK_ENCRYPTION_AES128_CBC, key_transport=KEY_TRANSPORT_RSA_OAEP):
@@ -161,7 +161,7 @@ def buildEncryptedKey(key_id, cert, sym_key, reference_type=KEY_REFERENCE_ISSUER
     enc_method = Element("EncryptionMethod", ns=wsencns)
     enc_method.set("Algorithm", keyTransportProperties[key_transport]['uri'])
     key_info = build_key_info(cert, reference_type)
-    
+
     cipher_data = Element("CipherData", ns=wsencns)
     cipher_value = Element("CipherValue", ns=wsencns)
     block_encryption_props = blockEncryptionProperties[block_encryption]
@@ -169,7 +169,7 @@ def buildEncryptedKey(key_id, cert, sym_key, reference_type=KEY_REFERENCE_ISSUER
     enc_sym_key = pub_key.public_encrypt(sym_key, keyTransportProperties[key_transport]['padding'])
     cipher_value.setText(b64encode(enc_sym_key))
     cipher_data.append(cipher_value)
-    
+
     sha1 = EVP.MessageDigest('sha1')
     sha1.update(enc_sym_key)
     cipher_value_sha1 = sha1.final()
@@ -202,7 +202,7 @@ def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUE
     sig_value = Element("SignatureValue", ns=dsns)
 
     key_info = build_key_info(ref, reference_type, ref_id)
-    
+
     sig.append(signed_info)
     sig.append(sig_value)
     sig.append(key_info)
@@ -219,7 +219,7 @@ def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUE
         reference.append(transforms)
         reference.append(digest_method)
         reference.append(digest_value)
-        signed_info.append(reference)        
+        signed_info.append(reference)
 
         if element_to_digest.namespace()[1] == dsns[1]:
             id_attribute = 'Id'
@@ -251,16 +251,16 @@ def signMessage(key, ref, elements_to_digest, reference_type=KEY_REFERENCE_ISSUE
         signed_digest = enc.final()
 
     sig_value.setText(b64encode(signed_digest))
-    
+
     return sig
 
 def verifyMessage(env, keystore, symmetric_keys):
     signed_data_blocks = dict()
-    
+
     def collectSignedDataBlock(elt):
         if not elt.get("Id", ns=wsuns):
             return
-        
+
         signed_data_blocks[elt.get("Id", ns=wsuns)] = elt
 
     env.walk(collectSignedDataBlock)
@@ -350,18 +350,18 @@ def encryptMessage(cert, symmetric_key, elements_to_encrypt, enc_key_uri, refere
         enc_data = Element("EncryptedData", ns=wsencns)
         enc_data.set("Id", id)
         enc_data.set("Type", "http://www.w3.org/2001/04/xmlenc#" + type)
-        
+
         block_encryption_props = blockEncryptionProperties[block_encryption]
         enc_method = Element("EncryptionMethod", ns=wsencns)
         enc_method.set("Algorithm", block_encryption_props['uri'])
-        
+
         key_info = Element("KeyInfo", ns=dsns)
         sec_token_ref = Element("SecurityTokenReference", ns=wssens)
         wsse_reference = Element("Reference", ns=wssens)
         wsse_reference.set("URI", enc_key_uri)
         sec_token_ref.append(wsse_reference)
         key_info.append(sec_token_ref)
-        
+
         cipher_data = Element("CipherData", ns=wsencns)
         cipher_value = Element("CipherValue", ns=wsencns)
         cipher = EVP.Cipher(alg=blockEncryptionProperties[block_encryption]['openssl_cipher'], key=sym_key, iv=iv, op=1, padding=0)
@@ -376,7 +376,7 @@ def encryptMessage(cert, symmetric_key, elements_to_encrypt, enc_key_uri, refere
         enc_data.append(enc_method)
         enc_data.append(key_info)
         enc_data.append(cipher_data)
-        
+
         if type == 'Element':
             element_to_encrypt.parent.replaceChild(element_to_encrypt, enc_data)
         elif type == 'Content':
@@ -384,7 +384,7 @@ def encryptMessage(cert, symmetric_key, elements_to_encrypt, enc_key_uri, refere
             for child in element_to_encrypt.children:
                 element_to_encrypt.remove(child)
             element_to_encrypt.append(enc_data)
-    
+
     return reference_list
 
 def decryptMessage(env, keystore, symmetric_keys):
@@ -418,7 +418,7 @@ def decryptMessage(env, keystore, symmetric_keys):
         priv_key = keystore.lookup(reference).getRsaPrivateKey()
         sym_key = priv_key.private_decrypt(enc_key, key_transport_props['padding'])
         symmetric_keys[key_elt.get("Id")] = sym_key
-        
+
         if key_elt.getChild("ReferenceList") is not None:
             for data_reference in key_elt.getChild("ReferenceList").getChildren("DataReference"):
                 uri = data_reference.get("URI")
@@ -429,7 +429,7 @@ def decryptMessage(env, keystore, symmetric_keys):
         enc_content = b64decode(data_block.getChild("CipherData").getChild("CipherValue").getText())
         iv = enc_content[:block_encryption_props['iv_size']]
         enc_content = enc_content[block_encryption_props['iv_size']:]
-        
+
         if data_block.get("Id") in data_block_id_to_key:
             sym_key = data_block_id_to_key[data_block.get("Id")]
         else:

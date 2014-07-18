@@ -1,6 +1,6 @@
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the (LGPL) GNU Lesser General Public License as
-# published by the Free Software Foundation; either version 3 of the 
+# published by the Free Software Foundation; either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -25,6 +25,7 @@ from suds.properties import *
 PROTOCOL_HTTP = 'http'
 PROTOCOL_HTTP_NTLM_AUTH = 'http-ntlm'
 PROTOCOL_HTTPS_CERT_AUTH = 'https-cert'
+PROTOCOL_HTTPS_AUTH = 'https-auth'
 
 class TransportFactory:
     @classmethod
@@ -35,9 +36,14 @@ class TransportFactory:
             transport = suds.transport.https.WindowsHttpAuthenticated()
         elif options.protocol == PROTOCOL_HTTPS_CERT_AUTH:
             transport = suds.transport.https.HttpsClientCertAuthenticated()
-        transport.options = options 
+            transport.client_auth.key = options.keyfile
+            transport.client_auth.cert = options.certfile
+        elif options.protocol == PROTOCOL_HTTPS_AUTH:
+            transport = suds.transport.https.HttpsAuthenticated()
+
+        transport.options = options
         return transport
-    
+
 class Options(Skin):
     """
     Options:
@@ -59,7 +65,7 @@ class Options(Skin):
         - B{password} - The password used for http authentication.
                 - type: I{str}
                 - default: None
-    """    
+    """
     def __init__(self, **kwargs):
         domain = __name__
         definitions = [

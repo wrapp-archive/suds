@@ -1,6 +1,6 @@
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the (LGPL) GNU Lesser General Public License as
-# published by the Free Software Foundation; either version 3 of the 
+# published by the Free Software Foundation; either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -36,10 +36,10 @@ except ImportError:
 
 
 wssens = \
-    ('wsse', 
+    ('wsse',
      'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd')
 wsse11ns = \
-    ('wsse11', 
+    ('wsse11',
      'http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd')
 wsuns = \
     ('wsu',
@@ -71,6 +71,7 @@ class SecurityProcessor:
     def processOutgoingMessage(self, soapenv, wsse):
         soapenv.addPrefix('wsu', 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd')
         soapenv.getChild('Header').insert(self.xml(wsse), 0)
+
         signatures = [Signature(options) for options in wsse.signatures]
         keys = [Key(options) for options in wsse.keys]
         for key in keys:
@@ -86,7 +87,7 @@ class SecurityProcessor:
         else:
             self.signMessage(soapenv, wsse, signatures)
             self.encryptMessage(soapenv, wsse, keys)
-    
+
     def removeEncryptedHeaders(self, soapenv):
         def removeEncryptedHeaders(elt):
             if not elt.match("EncryptedHeader", ns=wsse11ns):
@@ -97,7 +98,7 @@ class SecurityProcessor:
             children[0].set("Id", id)
 
         soapenv.walk(removeEncryptedHeaders)
-        
+
     def signMessage(self, env, wsse, signatures):
         primary_sig = None
         security_header = env.childAtPath('Header/Security')
@@ -150,20 +151,20 @@ class SecurityProcessor:
 
 class Token(Object):
     """ I{Abstract} security token. """
-    
+
     @classmethod
     def now(cls):
         return datetime.now()
-    
+
     @classmethod
     def utc(cls):
         return datetime.utcnow()
-    
+
     @classmethod
     def sysdate(cls):
         utc = UTC()
         return str(utc)
-    
+
     def __init__(self):
             Object.__init__(self)
 
@@ -197,7 +198,7 @@ class UsernameToken(Token):
         else:
             self.nonce = None
             self.created = None
-        
+
     def setnonce(self, text=None):
         """
         Set I{nonce} which is arbitraty set of bytes to prevent
@@ -216,7 +217,7 @@ class UsernameToken(Token):
             self.nonce = m.hexdigest()
         else:
             self.nonce = text
-        
+
     def setcreated(self, dt=None):
         """
         Set I{created}.
@@ -228,8 +229,8 @@ class UsernameToken(Token):
             self.created = Token.utc()
         else:
             self.created = dt
-        
-        
+
+
     def xml(self):
         """
         Get xml representation of the object.
@@ -271,7 +272,7 @@ class Timestamp(Token):
         Token.__init__(self)
         self.created = Token.utc()
         self.expires = self.created + timedelta(seconds=validity)
-        
+
     def xml(self):
         root = Element("Timestamp", ns=wsuns)
         # xsd:datetime format does not have fractional seconds
@@ -301,7 +302,7 @@ class Signature(Object):
 
     def signMessage(self, env, signOnlyEntireHeadersAndBody):
         elements_to_digest = []
-        
+
         for elements_to_digest_func in self.signed_parts:
             addl_elements = elements_to_digest_func(env, self)
             if addl_elements is None:
@@ -349,7 +350,7 @@ class Key(Object):
         encrypted_parts = second_pass and self.second_pass_encrypted_parts or self.encrypted_parts
         elements_to_encrypt = []
         encrypted_headers = []
-        
+
         for elements_to_encrypt_func in encrypted_parts:
             addl_elements = elements_to_encrypt_func(env)
             if addl_elements[0] is None:
@@ -377,14 +378,14 @@ class Key(Object):
             return self.encryptedKey
         else:
             return (self.encryptedKey, ref_list)
-        
+
     def __init__(self, options):
         Object.__init__(self)
         self.cert = options.cert
         self.encrypted_parts = options.encryptedparts
         self.second_pass_encrypted_parts = options.secondpassencryptedparts
         self.blockEncryption = options.blockencryption
-        self.keyTransport = options.keytransport 
+        self.keyTransport = options.keytransport
         self.keyReference = options.keyreference
         self.includeRefList = options.includereflist
         self.symmetricKey = buildSymmetricKey(self.blockEncryption)

@@ -1,6 +1,6 @@
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the (LGPL) GNU Lesser General Public License as
-# published by the Free Software Foundation; either version 3 of the 
+# published by the Free Software Foundation; either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -39,8 +39,8 @@ class Options(Skin):
             Definition('wsse11', bool, False),
             Definition('keystore', Keystore, Keystore()),
             Definition('tokens', Skin, Skin(ListProperties(TokenOptions))),
-            Definition('signatures', Skin, Skin(ListProperties(SignatureOptions))), 
-            Definition('keys', Skin, Skin(ListProperties(KeyOptions))), 
+            Definition('signatures', Skin, Skin(ListProperties(SignatureOptions))),
+            Definition('keys', Skin, Skin(ListProperties(KeyOptions))),
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))
 

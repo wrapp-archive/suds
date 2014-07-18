@@ -1,6 +1,6 @@
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the (LGPL) GNU Lesser General Public License as
-# published by the Free Software Foundation; either version 3 of the 
+# published by the Free Software Foundation; either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -24,6 +24,10 @@ from suds.transport.http import HttpTransport
 from logging import getLogger
 import httplib
 
+import requests
+from requests.auth import HTTPBasicAuth
+
+
 log = getLogger(__name__)
 
 
@@ -35,7 +39,7 @@ class HttpAuthenticated(HttpTransport):
     @ivar pm: The password manager.
     @ivar handler: The authentication handler.
     """
-    
+
     def __init__(self, **kwargs):
         """
         @param kwargs: Keyword arguments.
@@ -55,31 +59,31 @@ class HttpAuthenticated(HttpTransport):
         """
         HttpTransport.__init__(self, **kwargs)
         self.pm = u2.HTTPPasswordMgrWithDefaultRealm()
-        
+
     def open(self, request):
         self.addcredentials(request)
         return  HttpTransport.open(self, request)
-    
+
     def send(self, request):
         self.addcredentials(request)
         return  HttpTransport.send(self, request)
-    
+
     def addcredentials(self, request):
         credentials = self.credentials()
         if not (None in credentials):
             u = credentials[0]
             p = credentials[1]
             self.pm.add_password(None, request.url, u, p)
-    
+
     def credentials(self):
         return (self.options.username, self.options.password)
-    
+
     def u2handlers(self):
             handlers = HttpTransport.u2handlers(self)
             handlers.append(u2.HTTPBasicAuthHandler(self.pm))
             return handlers
-    
-    
+
+
 class WindowsHttpAuthenticated(HttpAuthenticated):
     """
     Provides Windows (NTLM) http authentication.
@@ -87,9 +91,9 @@ class WindowsHttpAuthenticated(HttpAuthenticated):
     @ivar handler: The authentication handler.
     @author: Christopher Bess
     """
-        
+
     def u2handlers(self):
-        # try to import ntlm support  
+        # try to import ntlm support
         try:
             from ntlm import HTTPNtlmAuthHandler
         except ImportError:
@@ -120,3 +124,27 @@ class HTTPSClientAuthHandler(u2.HTTPSHandler):
         return self.do_open(self.getConnection, req)
     def getConnection(self, host, timeout=300):
         return httplib.HTTPSConnection(host, key_file=self.key, cert_file=self.cert)
+
+
+class HttpsAuthenticated(HttpTransport):
+
+    def __init__(self):
+        # super does not work because not using new style class
+        HttpTransport.__init__(self)
+
+    def send(self, request):
+        credentials = self.credentials()
+        self.auth = HTTPBasicAuth(*credentials)
+        self.certs = self.certs()
+
+        resp = requests.post(url=request.url, data=request.message, headers=request.headers,
+                             cert=self.certs, verify=False, auth=self.auth)
+
+        resp = Reply(resp.status_code, resp.headers, resp.content)
+        return resp
+
+    def credentials(self):
+        return (self.options.username, self.options.password)
+
+    def certs(self):
+        return (self.options.keyfile, self.options.certfile)

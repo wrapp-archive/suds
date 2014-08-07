@@ -65,6 +65,9 @@ class Options(Skin):
         - B{password} - The password used for http authentication.
                 - type: I{str}
                 - default: None
+        - B{verify_server} - Wether to verify the server ssl certificate. Can be the path to a CA bundle or True
+                - type: I{bool, str}
+                - default: True
     """
     def __init__(self, **kwargs):
         domain = __name__
@@ -77,5 +80,6 @@ class Options(Skin):
             Definition('password', basestring, None),
             Definition('keyfile', basestring, None),
             Definition('certfile', basestring, None),
+            Definition('verify_server', (basestring, bool), True),
         ]
         Skin.__init__(self, Properties(domain, definitions, kwargs))

@@ -139,7 +139,7 @@ class HttpsAuthenticated(HttpTransport):
         self.certs = self.certs()
 
         resp = requests.post(url=request.url, data=request.message, headers=request.headers,
-                             cert=self.certs, verify=False, auth=self.auth)
+                             cert=self.certs, auth=self.auth, verify=self.options.verify_server)
 
         resp = Reply(resp.status_code, resp.headers, resp.content)
         return resp
